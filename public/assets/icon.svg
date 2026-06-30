@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="عزم">
+  <rect width="512" height="512" rx="112" fill="#203860"/>
+  <path d="M96 320h320v38c0 21-17 38-38 38H134c-21 0-38-17-38-38v-38Z" fill="#F39818"/>
+  <path d="M122 185c40-52 86-78 138-78 68 0 121 41 160 123l-58 28c-27-57-61-86-102-86-32 0-62 19-91 58l-47-45Z" fill="#FFFFFF"/>
+  <text x="256" y="292" text-anchor="middle" font-family="Arial, sans-serif" font-size="112" font-weight="700" fill="#FFFFFF">عزم</text>
+</svg>
