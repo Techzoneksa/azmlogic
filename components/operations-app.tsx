@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -45,8 +45,10 @@ import {
 } from "lucide-react";
 import {
   ActivityLog,
+  CoverageArea,
   DeliveryAttempt,
   Driver,
+  DriverAreaAssignment,
   Order,
   Parcel,
   Partner,
@@ -59,6 +61,8 @@ import {
   cities,
   initialActivityLogs,
   initialAttempts,
+  initialCoverageAreas,
+  initialDriverAreaAssignments,
   initialDocuments,
   initialDrivers,
   initialOrders,
@@ -120,6 +124,7 @@ const operationsNav: NavItem[] = [
   { href: "/parcels", label: "الطرود", icon: Package },
   { href: "/dispatch", label: "لوحة التوزيع", icon: Send },
   { href: "/drivers", label: "المناديب", icon: UserRound },
+  { href: "/coverage-areas", label: "المناطق والتغطية", icon: MapPinned },
   { href: "/vehicles", label: "المركبات", icon: Car },
   { href: "/pickup-points", label: "نقاط الاستلام", icon: MapPinned },
   { href: "/delivery-attempts", label: "محاولات التسليم", icon: ClipboardCheck },
@@ -135,7 +140,7 @@ const operationsBottomNav: NavItem[] = [
   { href: "/dashboard", label: "الرئيسية", icon: Home },
   { href: "/orders", label: "المهام", icon: ClipboardList },
   { href: "/dispatch", label: "التوزيع", icon: Send },
-  { href: "/drivers", label: "المناديب", icon: UserRound },
+  { href: "/coverage-areas", label: "المناطق", icon: MapPinned },
   { href: "/settings", label: "المزيد", icon: MoreHorizontal }
 ];
 
@@ -214,6 +219,8 @@ function pageTitle(pathname: string) {
     "/parcels/new": "إضافة طرد",
     "/dispatch": "لوحة التوزيع",
     "/drivers": "المناديب",
+    "/coverage-areas": "المناطق والتغطية",
+    "/coverage-areas/new": "إضافة منطقة تغطية",
     "/vehicles": "المركبات",
     "/pickup-points": "نقاط الاستلام",
     "/delivery-attempts": "محاولات التسليم",
@@ -231,6 +238,7 @@ function pageTitle(pathname: string) {
   if (clean.startsWith("/orders/")) return "تفاصيل الطلب";
   if (clean.startsWith("/parcels/")) return "تفاصيل الطرد";
   if (clean.startsWith("/drivers/")) return "ملف المندوب";
+  if (clean.startsWith("/coverage-areas/")) return "ملف منطقة التغطية";
   if (clean.startsWith("/vehicles/")) return "ملف المركبة";
   if (clean.startsWith("/transport-documents/")) return "تفاصيل وثيقة النقل";
   if (clean.startsWith("/driver/task/")) return "تفاصيل المهمة";
@@ -254,6 +262,8 @@ export function OperationsApp() {
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [parcels, setParcels] = useState<Parcel[]>(initialParcels);
   const [drivers] = useState<Driver[]>(initialDrivers);
+  const [coverageAreas, setCoverageAreas] = useState<CoverageArea[]>(initialCoverageAreas);
+  const [driverAreaAssignments, setDriverAreaAssignments] = useState<DriverAreaAssignment[]>(initialDriverAreaAssignments);
   const [vehicles] = useState<Vehicle[]>(initialVehicles);
   const [pickupPoints] = useState<PickupPoint[]>(initialPickupPoints);
   const [attempts, setAttempts] = useState<DeliveryAttempt[]>(initialAttempts);
@@ -442,6 +452,31 @@ export function OperationsApp() {
     [orders, parcels]
   );
 
+  const areaName = useCallback((areaId?: string) => {
+    return coverageAreas.find((area) => area.id === areaId)?.name ?? "غير محدد";
+  }, [coverageAreas]);
+
+  const assignmentsForDriver = useCallback((driverId: string) => {
+    return driverAreaAssignments.filter((assignment) => assignment.driverId === driverId);
+  }, [driverAreaAssignments]);
+
+  const primaryAssignment = useCallback((driverId: string) => {
+    return assignmentsForDriver(driverId).find((assignment) => assignment.coverageType === "أساسي") ?? assignmentsForDriver(driverId)[0];
+  }, [assignmentsForDriver]);
+
+  function driverReadiness(driver: Driver) {
+    if (driver.readinessRate) return driver.readinessRate;
+    if (driver.status.includes("مراجعة")) return 58;
+    if (driver.status.includes("خارج")) return 72;
+    return 92;
+  }
+
+  function driverCompliance(driver: Driver) {
+    if (driver.complianceStatus) return driver.complianceStatus;
+    if (driver.status.includes("مراجعة")) return "يحتاج مراجعة";
+    return "ساري";
+  }
+
   const partnerRows = useMemo<Row[]>(
     () =>
       partners.map((partner) => ({
@@ -529,27 +564,56 @@ export function OperationsApp() {
 
   const driverRows = useMemo<Row[]>(
     () =>
-      drivers.map((driver) => ({
-        id: driver.id,
-        title: driver.name,
-        subtitle: `${driver.city} · ${driver.type}`,
-        status: driver.status,
-        href: `/drivers/${routeId(driver.id)}`,
+      drivers.map((driver) => {
+        const primary = primaryAssignment(driver.id);
+        return {
+          id: driver.id,
+          title: driver.name,
+          subtitle: `${driver.nationality ?? "جنسية غير محددة"} · ${driver.agreementType ?? driver.type}`,
+          status: driver.status,
+          href: `/drivers/${routeId(driver.id)}`,
+          fields: [
+            field("رقم الجوال", driver.phone),
+            field("رقم الهوية / الإقامة", driver.nationalId),
+            field("الجنسية", driver.nationality ?? "سعودي"),
+            field("العمر", driver.age ?? 32),
+            field("نوع المندوب", driver.type),
+            field("نوع الاتفاق", driver.agreementType ?? "راتب + عمولة"),
+            field("المنطقة الأساسية", areaName(primary?.areaId ?? driver.primaryAreaId)),
+            field("حالة الهوية", driver.identityStatus ?? driverCompliance(driver)),
+            field("حالة رخصة القيادة", driver.licenseStatus ?? driverCompliance(driver)),
+            field("حالة العقد", driver.contractStatus ?? "ساري"),
+            field("المركبة المرتبطة", driver.vehicle),
+            field("نسبة الجاهزية", percent(driverReadiness(driver)))
+          ]
+        };
+      }),
+    [drivers, areaName, primaryAssignment]
+  );
+
+  const coverageAreaRows = useMemo<Row[]>(
+    () =>
+      coverageAreas.map((area) => ({
+        id: area.id,
+        title: area.name,
+        subtitle: `${area.city} · ${area.areaType}`,
+        status: area.status,
+        href: `/coverage-areas/${routeId(area.id)}`,
         fields: [
-          field("رقم الجوال", driver.phone),
-          field("رقم الهوية أو الإقامة", driver.nationalId),
-          field("نوع المندوب", driver.type),
-          field("المدينة", driver.city),
-          field("المركبة المرتبطة", driver.vehicle),
-          field("عدد المهام اليوم", driver.tasksToday),
-          field("تم التسليم اليوم", driver.deliveredToday),
-          field("محاولات فاشلة", driver.failedAttempts),
-          field("نسبة النجاح", percent(driver.successRate)),
-          field("آخر موقع معروف", driver.lastLocation),
-          field("ملاحظات", driver.notes)
+          field("المدينة", area.city),
+          field("الأحياء", area.neighborhoods.join("، ")),
+          field("نوع المنطقة", area.areaType),
+          field("الشركاء المرتبطون", area.partnerIds.length),
+          field("نقاط الاستلام", area.pickupPointIds.length),
+          field("المناديب المعينون", area.assignedDriverIds.length),
+          field("الطاقة التشغيلية", area.capacity),
+          field("عدد مهام اليوم", area.tasksToday),
+          field("نسبة النجاح", percent(area.successRate)),
+          field("مستوى الضغط التشغيلي", area.pressureLevel),
+          field("ملاحظات", area.notes)
         ]
       })),
-    [drivers]
+    [coverageAreas]
   );
 
   const vehicleRows = useMemo<Row[]>(
@@ -714,6 +778,9 @@ export function OperationsApp() {
           tasks={allTasks}
           orders={orders}
           parcels={parcels}
+          drivers={drivers}
+          coverageAreas={coverageAreas}
+          driverAreaAssignments={driverAreaAssignments}
           onStatus={updateTaskStatus}
           onFailed={recordFailedAttempt}
           onReturn={(taskId) =>
@@ -820,12 +887,26 @@ export function OperationsApp() {
     }
 
     if (section === "drivers") {
-      if (id) return <DetailPage title="ملف المندوب" row={driverRows.find((row) => row.id === id)} />;
+      if (id) return <DriverProfilePage driver={drivers.find((driver) => driver.id === id)} />;
       return (
         <EntityPage
           title="المناديب"
-          description="متابعة جاهزية المناديب وأدائهم ومهامهم اليومية"
+          description="ملفات المناديب الأساسية: الهوية، الرخصة، العقد، نوع الاتفاق، المركبة، مناطق التغطية، والامتثال التشغيلي"
           rows={driverRows}
+        />
+      );
+    }
+
+    if (section === "coverage-areas") {
+      if (id === "new") return <NewCoverageAreaForm />;
+      if (id) return <CoverageAreaProfilePage area={coverageAreas.find((area) => area.id === id)} />;
+      return (
+        <EntityPage
+          title="المناطق والتغطية"
+          description="إدارة مناطق التشغيل والتسليم وربط المناديب ونقاط الاستلام والشركاء حسب نطاق التغطية"
+          rows={coverageAreaRows}
+          newHref="/coverage-areas/new"
+          newLabel="إضافة منطقة"
         />
       );
     }
@@ -941,6 +1022,13 @@ export function OperationsApp() {
     const readyVehicles = vehicles.filter((vehicle) => vehicle.status === "جاهزة").length;
     const totalTasks = orders.length + parcels.length;
     const activePartners = partners.filter((partner) => partner.status === "نشط").length;
+    const coveredAreas = coverageAreas.filter((area) => area.assignedDriverIds.length > 0).length;
+    const uncoveredAreas = coverageAreas.filter((area) => area.assignedDriverIds.length === 0).length;
+    const readyDrivers = drivers.filter((driver) => driverReadiness(driver) >= 85 && driverCompliance(driver) === "ساري").length;
+    const reviewDrivers = drivers.filter((driver) => driverReadiness(driver) < 85 || driverCompliance(driver) !== "ساري").length;
+    const expiredDocuments = drivers.filter((driver) => ["منتهي", "ناقص"].includes(driver.licenseStatus ?? driver.documentStatus ?? "")).length;
+    const expiringLicenses = drivers.filter((driver) => (driver.licenseStatus ?? "").includes("ينتهي")).length;
+    const expiringIdentities = drivers.filter((driver) => (driver.identityStatus ?? "").includes("ينتهي")).length;
 
     const kpis = [
       { label: "إجمالي مهام اليوم", value: totalTasks, icon: Layers, trend: "جاهز للتوسع بالترقيم" },
@@ -953,6 +1041,13 @@ export function OperationsApp() {
       { label: "المناديب النشطون", value: activeDrivers, icon: UserRound, trend: "جاهزية ميدانية" },
       { label: "المركبات الجاهزة", value: readyVehicles, icon: Car, trend: "فحص تشغيلي" },
       { label: "الشركاء النشطون", value: activePartners, icon: Users, trend: "تغطية متعددة" },
+      { label: "مناطق مغطاة", value: coveredAreas, icon: MapPinned, trend: "إسناد مناطق" },
+      { label: "مناطق بدون مناديب", value: uncoveredAreas, icon: AlertTriangle, trend: "تحتاج إسناد" },
+      { label: "مناديب جاهزون", value: readyDrivers, icon: BadgeCheck, trend: "امتثال ساري" },
+      { label: "مناديب يحتاجون مراجعة", value: reviewDrivers, icon: AlertTriangle, trend: "وثائق أو عقد" },
+      { label: "وثائق منتهية", value: expiredDocuments, icon: FileText, trend: "مراجعة فورية" },
+      { label: "رخص تنتهي قريباً", value: expiringLicenses, icon: ClipboardCheck, trend: "تنبيه امتثال" },
+      { label: "هويات تنتهي قريباً", value: expiringIdentities, icon: ShieldCheck, trend: "تنبيه امتثال" },
       { label: "وثائق النقل", value: documents.length, icon: FileText, trend: "حفظ دون حذف" },
       { label: "حالة جاهزية بيان", value: Object.values(checklist).filter(Boolean).length, icon: ShieldCheck, trend: "قيد التجهيز" }
     ];
@@ -970,6 +1065,36 @@ export function OperationsApp() {
               <span className="kpi-trend">{item.trend}</span>
             </article>
           ))}
+        </section>
+
+        <section className="command-card">
+          <div className="card-header">
+            <div>
+              <h3>تغطية المناطق اليوم</h3>
+              <p>نظرة سريعة على توزيع المناديب والمهام ونسبة النجاح حسب المنطقة.</p>
+            </div>
+            <Link className="ghost-button" href="/coverage-areas">
+              <MapPinned size={18} />
+              إدارة المناطق
+            </Link>
+          </div>
+          <div className="three-grid">
+            {coverageAreas.slice(0, 4).map((area) => (
+              <article className="task-card" key={area.id}>
+                <h4>{area.name}</h4>
+                <div className="task-meta">
+                  <Badge>{area.status}</Badge>
+                  <span className="route-chip">{area.city}</span>
+                </div>
+                <dl className="compact-list">
+                  <div><dt>عدد المناديب</dt><dd>{ar(area.assignedDriverIds.length)}</dd></div>
+                  <div><dt>مهام اليوم</dt><dd>{ar(area.tasksToday)}</dd></div>
+                  <div><dt>نسبة النجاح</dt><dd>{percent(area.successRate)}</dd></div>
+                  <div><dt>حالة التغطية</dt><dd>{area.status}</dd></div>
+                </dl>
+              </article>
+            ))}
+          </div>
         </section>
 
         <section className="section-grid">
@@ -1158,6 +1283,12 @@ export function OperationsApp() {
               <Filter size={18} />
               تصفية متقدمة
             </button>
+            <Select name="dispatchCity" label="المدينة" options={["الكل", ...cities]} compact />
+            <Select name="dispatchArea" label="المنطقة" options={["الكل", ...coverageAreas.map((area) => area.name)]} compact />
+            <Select name="dispatchPartner" label="الشريك" options={["الكل", ...partners.slice(0, 6).map((partner) => partner.name)]} compact />
+            <Select name="dispatchTaskType" label="نوع المهمة" options={["الكل", "طلب", "طرد"]} compact />
+            <Select name="dispatchStatus" label="الحالة" options={["الكل", "جديد", "جاهز للتوزيع", "قيد التوصيل", "متأخر"]} compact />
+            <Select name="dispatchDriver" label="المندوب" options={["الكل", ...drivers.map((driver) => driver.name)]} compact />
           </div>
           <div className="toolbar-group">
             <button className="ghost-button" type="button">
@@ -1202,7 +1333,9 @@ export function OperationsApp() {
                   <Badge>{driver.status}</Badge>
                   <span className="route-chip">{driver.city}</span>
                   <span className="route-chip">{driver.vehicle}</span>
+                  <span className="route-chip">{areaName(primaryAssignment(driver.id)?.areaId)}</span>
                 </div>
+                <p className="muted">الوثائق: {driverCompliance(driver)} · الجاهزية: {percent(driverReadiness(driver))}</p>
                 <button
                   className="ghost-button"
                   type="button"
@@ -1475,6 +1608,408 @@ export function OperationsApp() {
           </button>
         </div>
       </section>
+    );
+  }
+
+  function DriverProfilePage({ driver }: { driver?: Driver }) {
+    if (!driver) {
+      return <EmptyState title="المندوب غير موجود" text="لم يتم العثور على ملف المندوب ضمن بيانات العرض" icon={AlertTriangle} />;
+    }
+
+    const assignments = assignmentsForDriver(driver.id);
+    const primary = primaryAssignment(driver.id);
+    const linkedVehicle = vehicles.find((vehicle) => vehicle.plate === driver.vehicle || vehicle.id === driver.vehicleId);
+    const driverTasks = allTasks.filter((task) => task.driver === driver.name);
+    const profileFields = [
+      field("الاسم الكامل", driver.name),
+      field("رقم الهوية / الإقامة", driver.nationalId),
+      field("نوع الهوية", driver.identityType ?? "هوية وطنية"),
+      field("الجنسية", driver.nationality ?? "سعودي"),
+      field("تاريخ الميلاد", driver.birthDate ?? "1992-01-01"),
+      field("العمر", driver.age ?? 32),
+      field("رقم الجوال", driver.phone),
+      field("البريد الإلكتروني", driver.email ?? "driver@example.sa"),
+      field("المدينة", driver.city),
+      field("العنوان", driver.address ?? driver.lastLocation),
+      field("جهة اتصال للطوارئ", driver.emergencyContact ?? "غير محدد"),
+      field("ملاحظات", driver.notes)
+    ];
+    const documentFields = [
+      field("رقم رخصة القيادة", driver.licenseNumber ?? "L-DEMO"),
+      field("نوع الرخصة", driver.licenseType ?? "خصوصي"),
+      field("تاريخ إصدار الرخصة", driver.licenseIssueDate ?? "2024-01-01"),
+      field("تاريخ انتهاء الرخصة", driver.licenseExpiryDate ?? "2028-01-01"),
+      field("حالة الرخصة", driver.licenseStatus ?? driverCompliance(driver)),
+      field("تاريخ انتهاء الهوية / الإقامة", driver.identityExpiryDate ?? "2028-01-01"),
+      field("حالة الهوية", driver.identityStatus ?? driverCompliance(driver)),
+      field("صورة الهوية", driver.identityFile ?? "مرفق تجريبي"),
+      field("صورة الرخصة", driver.licenseFile ?? "مرفق تجريبي"),
+      field("صورة العقد", driver.contractFile ?? "مرفق تجريبي"),
+      field("صورة التأمين", driver.insuranceFile ?? "مرفق تجريبي")
+    ];
+    const agreementFields = [
+      field("نوع الاتفاق", driver.agreementType ?? "راتب + عمولة"),
+      field("الراتب الأساسي", driver.baseSalary ?? 0),
+      field("عمولة الطلب", driver.commissionPerOrder ?? 0),
+      field("عمولة الطرد", driver.commissionPerParcel ?? 0),
+      field("تاريخ بداية العقد", driver.contractStartDate ?? "2026-01-01"),
+      field("تاريخ نهاية العقد", driver.contractEndDate ?? "2026-12-31"),
+      field("حالة العقد", driver.contractStatus ?? "ساري"),
+      field("نوع الدوام", driver.workType ?? "دوام كامل"),
+      field("عدد ساعات الدوام", driver.workHours ?? "8 ساعات"),
+      field("أيام العمل", driver.workDays ?? "الأحد - الخميس"),
+      field("أيام الإجازة", driver.offDays ?? "الجمعة والسبت")
+    ];
+    const performance = [
+      ["إجمالي المهام", driver.tasksToday],
+      ["تم التسليم", driver.deliveredToday],
+      ["تعثر التسليم", driver.failedAttempts],
+      ["المرتجعات", driver.returnsThisMonth ?? 0],
+      ["نسبة النجاح", percent(driver.successRate)],
+      ["متوسط وقت التسليم", driver.averageDeliveryTime ?? "35 دقيقة"],
+      ["تقييم الالتزام", driver.commitmentRating ?? "جيد"],
+      ["أيام الغياب", driver.absenceDays ?? 0]
+    ];
+
+    return (
+      <div className="page-grid">
+        <section className="command-card">
+          <div className="card-header">
+            <div>
+              <span className="section-eyebrow">ملف مندوب رئيسي</span>
+              <h3>{driver.name}</h3>
+              <p>بيانات الهوية والرخصة والعقد والمنطقة والمركبة والجاهزية التشغيلية في سجل واحد.</p>
+            </div>
+            <Badge>{driver.status}</Badge>
+          </div>
+          <div className="kpi-grid">
+            {[
+              ["حالة المندوب", driver.status],
+              ["نسبة الجاهزية", percent(driverReadiness(driver))],
+              ["المنطقة الأساسية", areaName(primary?.areaId ?? driver.primaryAreaId)],
+              ["نوع الاتفاق", driver.agreementType ?? "راتب + عمولة"],
+              ["حالة الهوية", driver.identityStatus ?? driverCompliance(driver)],
+              ["حالة الرخصة", driver.licenseStatus ?? driverCompliance(driver)],
+              ["المهام المنجزة هذا الشهر", driver.completedThisMonth ?? driver.deliveredToday],
+              ["آخر نشاط", driver.lastActivity ?? "اليوم"]
+            ].map(([label, value]) => (
+              <article className="card kpi-card" key={String(label)}>
+                <h3>{String(label)}</h3>
+                <div className="kpi-value" style={{ fontSize: 22 }}>{String(value)}</div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="two-grid">
+          <InfoPanel title="البيانات الشخصية" fields={profileFields} />
+          <InfoPanel title="الرخصة والوثائق" fields={documentFields} />
+        </section>
+
+        <section className="two-grid">
+          <InfoPanel title="العقد والاتفاقيات" fields={agreementFields} note="هذه بيانات اتفاق تشغيلية وليست نظام رواتب أو محاسبة." />
+          <div className="command-card">
+            <div className="card-header">
+              <div>
+                <h3>المناطق والتغطية</h3>
+                <p>إسناد المندوب إلى منطقة أساسية ومناطق احتياطية.</p>
+              </div>
+              <button className="primary-button" type="button" onClick={() => assignDriverToNextArea(driver)}>
+                <MapPinned size={18} />
+                إسناد إلى منطقة
+              </button>
+            </div>
+            <div className="page-grid">
+              {assignments.map((assignment) => (
+                <article className="task-card" key={`${assignment.driverId}-${assignment.areaId}`}>
+                  <h4>{areaName(assignment.areaId)}</h4>
+                  <div className="task-meta">
+                    <Badge>{assignment.coverageType}</Badge>
+                    <span className="route-chip">{assignment.timeWindow}</span>
+                  </div>
+                  <dl className="compact-list">
+                    <div><dt>بداية التعيين</dt><dd>{assignment.startDate}</dd></div>
+                    <div><dt>نهاية التعيين</dt><dd>{assignment.endDate}</dd></div>
+                    <div><dt>أولوية التوزيع</dt><dd>{assignment.priority}</dd></div>
+                  </dl>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="two-grid">
+          <InfoPanel
+            title="المركبة"
+            fields={[
+              field("رقم اللوحة", linkedVehicle?.plate ?? driver.vehicle),
+              field("نوع المركبة", linkedVehicle?.type ?? "غير محدد"),
+              field("حالة المركبة", linkedVehicle?.status ?? "غير محدد"),
+              field("التأمين", linkedVehicle?.insurance ?? "غير محدد"),
+              field("الاستمارة", linkedVehicle?.registration ?? "غير محدد"),
+              field("الفحص الدوري", linkedVehicle?.inspection ?? "غير محدد"),
+              field("تاريخ الربط بالمندوب", "2026-07-01"),
+              field("ملاحظات", linkedVehicle?.notes ?? "لا توجد ملاحظات")
+            ]}
+          />
+          <div className="command-card">
+            <div className="card-header">
+              <div>
+                <h3>الأداء</h3>
+                <p>قراءة تشغيلية مختصرة دون بناء نظام محاسبة أو رواتب.</p>
+              </div>
+              <Badge>{percent(driver.successRate)}</Badge>
+            </div>
+            <div className="three-grid">
+              {performance.map(([label, value]) => (
+                <article className="task-card" key={String(label)}>
+                  <span className="muted">{String(label)}</span>
+                  <strong>{String(value)}</strong>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="two-grid">
+          <div className="command-card">
+            <div className="card-header"><div><h3>المهام</h3><p>آخر المهام المسندة للقراءة فقط.</p></div><Badge>{ar(driverTasks.length)}</Badge></div>
+            <div className="page-grid">
+              {driverTasks.length ? driverTasks.map((task) => (
+                <article className="task-card" key={task.id}>
+                  <h4>{task.id}</h4>
+                  <div className="task-meta"><Badge>{task.taskType}</Badge><Badge>{task.status}</Badge></div>
+                  <dl className="compact-list">
+                    <div><dt>الشريك</dt><dd>{task.partner}</dd></div>
+                    <div><dt>الاستلام</dt><dd>{task.pickup}</dd></div>
+                    <div><dt>التسليم</dt><dd>{task.delivery}</dd></div>
+                  </dl>
+                </article>
+              )) : <EmptyState title="لا توجد مهام مسندة" text="لا توجد مهام حالية مرتبطة بهذا المندوب" icon={ClipboardList} />}
+            </div>
+          </div>
+          <div className="command-card">
+            <div className="card-header"><div><h3>سجل الأنشطة</h3><p>أثر تدقيق تجريبي خاص بملف المندوب.</p></div><Badge>تجريبي</Badge></div>
+            <div className="timeline">
+              {["تم إنشاء المندوب", "تم تحديث الرخصة", "تم ربط مركبة", "تم إسناده إلى منطقة", "تم تغيير نوع الاتفاق"].map((item) => (
+                <div className="timeline-item" key={item}>
+                  <span className="timeline-dot"><Activity size={16} /></span>
+                  <div><strong>{item}</strong><p>{driver.name} · سجل تجريبي محفوظ محلياً</p></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  function CoverageAreaProfilePage({ area }: { area?: CoverageArea }) {
+    if (!area) {
+      return <EmptyState title="المنطقة غير موجودة" text="لم يتم العثور على منطقة التغطية المطلوبة" icon={AlertTriangle} />;
+    }
+    const areaAssignments = driverAreaAssignments.filter((assignment) => assignment.areaId === area.id);
+    const assignedDrivers = drivers.filter((driver) => area.assignedDriverIds.includes(driver.id) || areaAssignments.some((assignment) => assignment.driverId === driver.id));
+    const linkedPickupPoints = pickupPoints.filter((point) => area.pickupPointIds.includes(point.id));
+
+    return (
+      <div className="page-grid">
+        <section className="command-card">
+          <div className="card-header">
+            <div>
+              <span className="section-eyebrow">منطقة تغطية</span>
+              <h3>{area.name}</h3>
+              <p>{area.city} · {area.neighborhoods.join("، ")}</p>
+            </div>
+            <Badge>{area.status}</Badge>
+          </div>
+          <div className="kpi-grid">
+            {[
+              ["المدينة", area.city],
+              ["المناديب المعينون", assignedDrivers.length],
+              ["نقاط الاستلام", linkedPickupPoints.length],
+              ["مهام اليوم", area.tasksToday],
+              ["نسبة التسليم", percent(area.successRate)],
+              ["مستوى الضغط التشغيلي", area.pressureLevel],
+              ["الطاقة التشغيلية", area.capacity],
+              ["متوسط وقت التسليم", area.averageDeliveryTime]
+            ].map(([label, value]) => (
+              <article className="card kpi-card" key={String(label)}>
+                <h3>{String(label)}</h3>
+                <div className="kpi-value" style={{ fontSize: 22 }}>{String(value)}</div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="two-grid">
+          <InfoPanel title="الأحياء" fields={area.neighborhoods.map((name, index) => field(`حي ${ar(index + 1)}`, name))} />
+          <div className="command-card">
+            <div className="card-header">
+              <div><h3>المناديب المعينون</h3><p>ربط المنطقة بعدة مناديب مع نوع التغطية.</p></div>
+              <button className="primary-button" type="button" onClick={() => addDriverToArea(area)}>
+                <UserRound size={18} />
+                إضافة مندوب للمنطقة
+              </button>
+            </div>
+            <div className="page-grid">
+              {assignedDrivers.length ? assignedDrivers.map((driver) => {
+                const assignment = areaAssignments.find((item) => item.driverId === driver.id);
+                return (
+                  <article className="task-card" key={driver.id}>
+                    <h4>{driver.name}</h4>
+                    <div className="task-meta"><Badge>{assignment?.coverageType ?? "أساسي"}</Badge><Badge>{driver.status}</Badge></div>
+                    <dl className="compact-list">
+                      <div><dt>وقت التغطية</dt><dd>{assignment?.timeWindow ?? "غير محدد"}</dd></div>
+                      <div><dt>مهام اليوم</dt><dd>{ar(driver.tasksToday)}</dd></div>
+                      <div><dt>نسبة النجاح</dt><dd>{percent(driver.successRate)}</dd></div>
+                    </dl>
+                  </article>
+                );
+              }) : <EmptyState title="لا يوجد مناديب معينون لهذه المنطقة" text="يمكن إضافة مندوب للمنطقة من زر الإسناد التجريبي" icon={UserRound} />}
+            </div>
+          </div>
+        </section>
+
+        <section className="two-grid">
+          <div className="command-card">
+            <div className="card-header"><div><h3>نقاط الاستلام</h3><p>النقاط المرتبطة بنطاق المنطقة.</p></div><Badge>{ar(linkedPickupPoints.length)}</Badge></div>
+            <div className="page-grid">
+              {linkedPickupPoints.length ? linkedPickupPoints.map((point) => (
+                <article className="task-card" key={point.id}>
+                  <h4>{point.name}</h4>
+                  <div className="task-meta"><Badge>{point.status}</Badge><span className="route-chip">{point.partner}</span></div>
+                  <p className="muted">{point.type} · {point.district}</p>
+                </article>
+              )) : <EmptyState title="لا توجد نقاط استلام مضافة بعد" text="لا توجد نقاط مرتبطة بهذه المنطقة في بيانات العرض" icon={MapPinned} />}
+            </div>
+          </div>
+          <div className="command-card">
+            <div className="card-header"><div><h3>أداء المنطقة</h3><p>مؤشرات تشغيلية يومية للمنطقة.</p></div><Badge>{percent(area.successRate)}</Badge></div>
+            <div className="three-grid">
+              {[
+                ["مهام اليوم", area.tasksToday],
+                ["تم التسليم", Math.round(area.tasksToday * area.successRate / 100)],
+                ["قيد التوصيل", Math.max(0, area.tasksToday - Math.round(area.tasksToday * area.successRate / 100))],
+                ["تعثر التسليم", Math.max(1, Math.round(area.tasksToday * 0.04))],
+                ["مرتجعات", Math.max(0, Math.round(area.tasksToday * 0.02))],
+                ["متوسط وقت التسليم", area.averageDeliveryTime]
+              ].map(([label, value]) => <article className="task-card" key={String(label)}><span className="muted">{String(label)}</span><strong>{String(value)}</strong></article>)}
+            </div>
+          </div>
+        </section>
+
+        <section className="command-card">
+          <div className="card-header"><div><h3>خريطة تجريبية</h3><p>خريطة تجريبية لتوضيح نطاق التغطية.</p></div><MapPinned color="#F39818" /></div>
+          <div className="map-placeholder"><div className="map-route" /><span className="map-pin one" /><span className="map-pin two" /><span className="map-pin three" /></div>
+        </section>
+      </div>
+    );
+  }
+
+  function InfoPanel({ title, fields, note }: { title: string; fields: Field[]; note?: string }) {
+    return (
+      <section className="command-card">
+        <div className="card-header"><div><h3>{title}</h3>{note ? <p>{note}</p> : null}</div></div>
+        <dl className="detail-list">
+          {fields.map((item) => <div key={item.label}><dt>{item.label}</dt><dd>{item.value}</dd></div>)}
+        </dl>
+      </section>
+    );
+  }
+
+  function assignDriverToNextArea(driver: Driver) {
+    const currentAreaIds = assignmentsForDriver(driver.id).map((assignment) => assignment.areaId);
+    const target = coverageAreas.find((area) => !currentAreaIds.includes(area.id)) ?? coverageAreas[0];
+    if (!target) return;
+    if (driverCompliance(driver) !== "ساري") {
+      toast("لا يمكن اعتماد الإسناد لأن بيانات المندوب تحتاج مراجعة. تم حفظه كتجربة مع تحذير.");
+    }
+    const assignment: DriverAreaAssignment = {
+      driverId: driver.id,
+      areaId: target.id,
+      coverageType: currentAreaIds.length ? "احتياطي" : "أساسي",
+      startDate: "2026-07-01",
+      endDate: "2026-12-31",
+      timeWindow: "09:00 - 17:00",
+      priority: "أولوية متوسطة",
+      notes: "إسناد تجريبي محفوظ محلياً"
+    };
+    setDriverAreaAssignments((current) => [assignment, ...current]);
+    setCoverageAreas((current) => current.map((area) => area.id === target.id ? { ...area, assignedDriverIds: Array.from(new Set([...area.assignedDriverIds, driver.id])) } : area));
+    addLog("إسناد مندوب إلى منطقة", driver.id, `تم إسناد ${driver.name} إلى ${target.name}`);
+    toast("تم حفظ إسناد المنطقة التجريبي");
+  }
+
+  function addDriverToArea(area: CoverageArea) {
+    const driver = drivers.find((item) => !area.assignedDriverIds.includes(item.id)) ?? drivers[0];
+    if (!driver) return;
+    if (driverCompliance(driver) !== "ساري") {
+      toast("المندوب يحتاج مراجعة وثائق قبل الاعتماد النهائي. تم الحفظ كتجربة.");
+    }
+    const assignment: DriverAreaAssignment = {
+      driverId: driver.id,
+      areaId: area.id,
+      coverageType: area.assignedDriverIds.length ? "احتياطي" : "أساسي",
+      startDate: "2026-07-01",
+      endDate: "2026-12-31",
+      timeWindow: "10:00 - 18:00",
+      priority: "أولوية متوسطة",
+      notes: "إضافة تجريبية من ملف المنطقة"
+    };
+    setDriverAreaAssignments((current) => [assignment, ...current]);
+    setCoverageAreas((current) => current.map((item) => item.id === area.id ? { ...item, assignedDriverIds: Array.from(new Set([...item.assignedDriverIds, driver.id])) } : item));
+    addLog("إضافة مندوب لمنطقة", area.id, `تمت إضافة ${driver.name} إلى ${area.name}`);
+    toast("تمت إضافة المندوب للمنطقة");
+  }
+
+  function NewCoverageAreaForm() {
+    function submit(event: FormEvent<HTMLFormElement>) {
+      event.preventDefault();
+      const data = new FormData(event.currentTarget);
+      const name = String(data.get("name") ?? "").trim();
+      const city = String(data.get("city") ?? "").trim();
+      if (!name || !city) {
+        toast("اسم المنطقة والمدينة مطلوبة");
+        return;
+      }
+      const area: CoverageArea = {
+        id: `area-demo-${coverageAreas.length + 1}`,
+        name,
+        city,
+        neighborhoods: String(data.get("neighborhoods") ?? "حي تجريبي").split("،").map((item) => item.trim()).filter(Boolean),
+        status: "تحتاج مراجعة",
+        areaType: String(data.get("areaType") ?? "منطقة تشغيل"),
+        capacity: Number(data.get("capacity") ?? 4),
+        assignedDriverIds: [],
+        pickupPointIds: [],
+        partnerIds: [],
+        tasksToday: 0,
+        successRate: 0,
+        pressureLevel: "غير محدد",
+        averageDeliveryTime: "غير محدد",
+        notes: String(data.get("notes") ?? "منطقة تجريبية")
+      };
+      setCoverageAreas((current) => [area, ...current]);
+      addLog("إنشاء منطقة تغطية", area.id, `تم إنشاء منطقة ${area.name}`);
+      toast("تم حفظ منطقة التغطية");
+      router.push("/coverage-areas");
+    }
+
+    return (
+      <FormCard title="إضافة منطقة تغطية" description="إنشاء منطقة تشغيل تجريبية دون ربط خرائط أو تتبع فعلي">
+        <form className="form-stack" onSubmit={submit}>
+          <div className="two-grid">
+            <Input name="name" label="اسم المنطقة" placeholder="شمال جدة" />
+            <Select name="city" label="المدينة" options={cities} />
+            <Select name="areaType" label="نوع المنطقة" options={["منطقة تشغيل", "منطقة استلام", "منطقة تسليم", "منطقة مشتركة", "منطقة موسمية", "منطقة عالية الطلب"]} />
+            <Input name="capacity" label="الطاقة التشغيلية" placeholder="6" type="number" />
+          </div>
+          <TextArea name="neighborhoods" label="الأحياء" placeholder="أبحر، النعيم، السلامة" />
+          <TextArea name="notes" label="ملاحظات" placeholder="ملاحظات تشغيلية للمنطقة" />
+          <FormActions />
+        </form>
+      </FormCard>
     );
   }
 
@@ -2268,6 +2803,15 @@ function DispatchTaskCard({
           <dd>{task.due}</dd>
         </div>
       </dl>
+      <div className="checklist">
+        {["هل المندوب يغطي نفس المنطقة؟", "هل المندوب متاح؟", "هل وثائقه سارية؟", "هل مركبته جاهزة؟"].map((item) => (
+          <div className="check-row" key={item}>
+            <span>{item}</span>
+            <Badge>{item.includes("المنطقة") ? "تحقق قبل الاعتماد" : "جاهز للتجربة"}</Badge>
+          </div>
+        ))}
+      </div>
+      <p className="muted">إذا كان المندوب خارج منطقة التغطية الأساسية تظهر ملاحظة تجاوز تجريبية قبل الاعتماد.</p>
       <button className="primary-button" type="button" onClick={() => onAssign(task.id, firstDriver)}>
         <Send size={18} />
         إسناد إلى {firstDriver}
@@ -2281,6 +2825,9 @@ function DriverExperience({
   tasks,
   orders,
   parcels,
+  drivers,
+  coverageAreas,
+  driverAreaAssignments,
   onStatus,
   onFailed,
   onReturn,
@@ -2300,6 +2847,9 @@ function DriverExperience({
   }[];
   orders: Order[];
   parcels: Parcel[];
+  drivers: Driver[];
+  coverageAreas: CoverageArea[];
+  driverAreaAssignments: DriverAreaAssignment[];
   onStatus: (taskId: string, status: string) => void;
   onFailed: (taskId: string) => void;
   onReturn: (taskId: string) => void;
@@ -2309,6 +2859,9 @@ function DriverExperience({
   const active = assigned.filter((task) => !["تم التسليم", "تعذر التسليم", "مرتجع", "مرتجع للشريك"].includes(task.status));
   const taskId = pathname.startsWith("/driver/task/") ? decodePath(pathname.replace("/driver/task/", "")) : "";
   const selected = assigned.find((task) => task.id === taskId) ?? active[0] ?? assigned[0];
+  const currentDriver = drivers[0];
+  const currentAssignment = currentDriver ? driverAreaAssignments.find((assignment) => assignment.driverId === currentDriver.id) : undefined;
+  const currentArea = coverageAreas.find((area) => area.id === currentAssignment?.areaId);
 
   if (pathname.startsWith("/driver/task/") && selected) {
     const isParcel = parcels.some((parcel) => parcel.id === selected.id);
@@ -2379,6 +2932,24 @@ function DriverExperience({
   return (
     <main className="driver-app">
       <DriverHeader title={pathname === "/driver/tasks" ? "مهامي" : "الرئيسية"} />
+      {pathname !== "/driver/tasks" ? (
+        <section className="card mobile-card" style={{ marginBottom: 14 }}>
+          <div className="card-header">
+            <div>
+              <h3>منطقتي اليوم</h3>
+              <p>{currentArea?.name ?? "غير محددة"} · {currentArea?.city ?? currentDriver?.city ?? "غير محدد"}</p>
+            </div>
+            <Badge>{currentDriver?.complianceStatus ?? "ساري"}</Badge>
+          </div>
+          <dl>
+            <div><dt>أوقات التغطية</dt><dd>{currentAssignment?.timeWindow ?? "09:00 - 17:00"}</dd></div>
+            <div><dt>مهامي في المنطقة</dt><dd>{ar(assigned.length)}</dd></div>
+            <div><dt>نقاط الاستلام القريبة</dt><dd>{currentArea ? ar(currentArea.pickupPointIds.length) : "غير محدد"}</dd></div>
+            <div><dt>حالة الجاهزية</dt><dd>{currentDriver?.status ?? "متاح"}</dd></div>
+            <div><dt>تنبيهات الوثائق</dt><dd>{currentDriver?.licenseStatus === "منتهي" ? "الرخصة تحتاج مراجعة" : "لا توجد تنبيهات حالية"}</dd></div>
+          </dl>
+        </section>
+      ) : null}
       <section className="kpi-grid">
         {[
           ["مهامي اليوم", assigned.length],

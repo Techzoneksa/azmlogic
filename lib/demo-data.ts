@@ -70,7 +70,48 @@ export type Driver = {
   name: string;
   phone: string;
   nationalId: string;
+  identityType?: string;
+  nationality?: string;
+  birthDate?: string;
+  age?: number;
+  email?: string;
+  address?: string;
+  emergencyContact?: string;
   type: string;
+  agreementType?: string;
+  baseSalary?: number;
+  commissionPerOrder?: number;
+  commissionPerParcel?: number;
+  contractStartDate?: string;
+  contractEndDate?: string;
+  contractStatus?: string;
+  workType?: string;
+  workHours?: string;
+  workDays?: string;
+  offDays?: string;
+  licenseNumber?: string;
+  licenseType?: string;
+  licenseIssueDate?: string;
+  licenseExpiryDate?: string;
+  licenseStatus?: string;
+  identityExpiryDate?: string;
+  identityStatus?: string;
+  documentStatus?: string;
+  complianceStatus?: string;
+  readinessRate?: number;
+  primaryAreaId?: string;
+  secondaryAreaIds?: string[];
+  vehicleId?: string;
+  contractFile?: string;
+  identityFile?: string;
+  licenseFile?: string;
+  insuranceFile?: string;
+  lastActivity?: string;
+  completedThisMonth?: number;
+  returnsThisMonth?: number;
+  averageDeliveryTime?: string;
+  commitmentRating?: string;
+  absenceDays?: number;
   status: string;
   city: string;
   vehicle: string;
@@ -79,6 +120,35 @@ export type Driver = {
   failedAttempts: number;
   successRate: number;
   lastLocation: string;
+  notes: string;
+};
+
+export type DriverAreaAssignment = {
+  driverId: string;
+  areaId: string;
+  coverageType: string;
+  startDate: string;
+  endDate: string;
+  timeWindow: string;
+  priority: string;
+  notes: string;
+};
+
+export type CoverageArea = {
+  id: string;
+  name: string;
+  city: string;
+  neighborhoods: string[];
+  status: string;
+  areaType: string;
+  capacity: number;
+  assignedDriverIds: string[];
+  pickupPointIds: string[];
+  partnerIds: string[];
+  tasksToday: number;
+  successRate: number;
+  pressureLevel: string;
+  averageDeliveryTime: string;
   notes: string;
 };
 
@@ -829,6 +899,184 @@ export const initialActivityLogs: ActivityLog[] = [
     related: "جاهزية الربط",
     status: "قيد التجهيز",
     notes: "تمت مراجعة قائمة البيانات المطلوبة"
+  }
+];
+
+export const initialCoverageAreas: CoverageArea[] = [
+  {
+    id: "area-jed-north",
+    name: "شمال جدة",
+    city: "جدة",
+    neighborhoods: ["أبحر", "النعيم", "المحمدية", "الشاطئ", "السلامة"],
+    status: "نشطة",
+    areaType: "منطقة تشغيل",
+    capacity: 7,
+    assignedDriverIds: ["ظ…-ظ،ظ ظ،"],
+    pickupPointIds: ["ظ†-ظ£ظ ظ،", "ظ†-ظ£ظ ظ¢"],
+    partnerIds: ["ط´-ظ،ظ ظ ظ¢", "ط´-ظ،ظ ظ ظ¥"],
+    tasksToday: 42,
+    successRate: 94,
+    pressureLevel: "متوسط",
+    averageDeliveryTime: "34 دقيقة",
+    notes: "تغطية أساسية للمطاعم والطرود في شمال جدة"
+  },
+  {
+    id: "area-jed-center",
+    name: "وسط جدة",
+    city: "جدة",
+    neighborhoods: ["الروضة", "الخالدية", "الفيصلية", "الأندلس"],
+    status: "نشطة",
+    areaType: "منطقة مشتركة",
+    capacity: 6,
+    assignedDriverIds: ["ظ…-ظ،ظ ظ¥", "ظ…-ظ،ظ ظ،"],
+    pickupPointIds: ["ظ†-ظ£ظ ظ¢"],
+    partnerIds: ["ط´-ظ،ظ ظ ظ¢", "ط´-ظ،ظ ظ ظ¥"],
+    tasksToday: 36,
+    successRate: 91,
+    pressureLevel: "مرتفع",
+    averageDeliveryTime: "38 دقيقة",
+    notes: "منطقة كثيفة تحتاج متابعة وقت الذروة"
+  },
+  {
+    id: "area-jed-south",
+    name: "جنوب جدة",
+    city: "جدة",
+    neighborhoods: ["السنابل", "الخمرة", "الأجاويد"],
+    status: "ضعيفة التغطية",
+    areaType: "منطقة تسليم",
+    capacity: 5,
+    assignedDriverIds: ["ظ…-ظ،ظ ظ¤"],
+    pickupPointIds: [],
+    partnerIds: ["ط´-ظ،ظ ظ ظ§"],
+    tasksToday: 18,
+    successRate: 87,
+    pressureLevel: "متوسط",
+    averageDeliveryTime: "45 دقيقة",
+    notes: "تحتاج مندوب احتياطي في الفترة المسائية"
+  },
+  {
+    id: "area-jed-east",
+    name: "شرق جدة",
+    city: "جدة",
+    neighborhoods: ["الصفا", "المروة", "السامر"],
+    status: "بدون مناديب",
+    areaType: "منطقة عالية الطلب",
+    capacity: 4,
+    assignedDriverIds: [],
+    pickupPointIds: [],
+    partnerIds: ["ط´-ظ،ظ ظ ظ¨"],
+    tasksToday: 12,
+    successRate: 0,
+    pressureLevel: "يحتاج تدخل",
+    averageDeliveryTime: "غير محدد",
+    notes: "منطقة مطلوبة للتوسع وتحتاج إسناد مناديب"
+  },
+  {
+    id: "area-mak",
+    name: "مكة",
+    city: "مكة",
+    neighborhoods: ["العوالي", "العزيزية", "الشرايع"],
+    status: "نشطة",
+    areaType: "منطقة موسمية",
+    capacity: 8,
+    assignedDriverIds: ["ظ…-ظ،ظ ظ£"],
+    pickupPointIds: [],
+    partnerIds: ["ط´-ظ،ظ ظ ظ¤", "ط´-ظ،ظ ظ ظ¨"],
+    tasksToday: 27,
+    successRate: 90,
+    pressureLevel: "مرتفع",
+    averageDeliveryTime: "36 دقيقة",
+    notes: "جاهزة للتوسع الموسمي"
+  },
+  {
+    id: "area-ryd",
+    name: "الرياض",
+    city: "الرياض",
+    neighborhoods: ["النخيل", "الملقا", "الياسمين"],
+    status: "تحتاج مراجعة",
+    areaType: "منطقة تشغيل",
+    capacity: 9,
+    assignedDriverIds: ["ظ…-ظ،ظ ظ¢", "ظ…-ظ،ظ ظ¦"],
+    pickupPointIds: ["ظ†-ظ£ظ ظ£"],
+    partnerIds: ["ط´-ظ،ظ ظ ظ£", "ط´-ظ،ظ ظ ظ§"],
+    tasksToday: 39,
+    successRate: 88,
+    pressureLevel: "مرتفع",
+    averageDeliveryTime: "42 دقيقة",
+    notes: "تحتاج مراجعة امتثال أحد المناديب قبل الاعتماد"
+  }
+];
+
+export const initialDriverAreaAssignments: DriverAreaAssignment[] = [
+  {
+    driverId: "ظ…-ظ،ظ ظ،",
+    areaId: "area-jed-north",
+    coverageType: "أساسي",
+    startDate: "2026-07-01",
+    endDate: "2026-12-31",
+    timeWindow: "08:00 - 16:00",
+    priority: "أولوية عالية",
+    notes: "مندوب أساسي لشمال جدة"
+  },
+  {
+    driverId: "ظ…-ظ،ظ ظ،",
+    areaId: "area-jed-center",
+    coverageType: "احتياطي",
+    startDate: "2026-07-01",
+    endDate: "2026-12-31",
+    timeWindow: "16:00 - 22:00",
+    priority: "أولوية متوسطة",
+    notes: "احتياطي عند ضغط وسط جدة"
+  },
+  {
+    driverId: "ظ…-ظ،ظ ظ¢",
+    areaId: "area-ryd",
+    coverageType: "أساسي",
+    startDate: "2026-07-01",
+    endDate: "2026-08-31",
+    timeWindow: "10:00 - 18:00",
+    priority: "أولوية عالية",
+    notes: "الرخصة تنتهي قريباً ويجب مراجعتها"
+  },
+  {
+    driverId: "ظ…-ظ،ظ ظ£",
+    areaId: "area-mak",
+    coverageType: "موسمي",
+    startDate: "2026-07-01",
+    endDate: "2026-09-30",
+    timeWindow: "12:00 - 20:00",
+    priority: "أولوية موسمية",
+    notes: "تغطية موسمية داخل مكة"
+  },
+  {
+    driverId: "ظ…-ظ،ظ ظ¤",
+    areaId: "area-jed-south",
+    coverageType: "أساسي",
+    startDate: "2026-07-01",
+    endDate: "2026-10-31",
+    timeWindow: "09:00 - 17:00",
+    priority: "أولوية متوسطة",
+    notes: "مكلف بجنوب جدة مع قابلية التوسع"
+  },
+  {
+    driverId: "ظ…-ظ،ظ ظ¥",
+    areaId: "area-jed-center",
+    coverageType: "أساسي",
+    startDate: "2026-07-01",
+    endDate: "2026-12-01",
+    timeWindow: "07:00 - 15:00",
+    priority: "أولوية عالية",
+    notes: "لا يعتمد للإسناد حتى تحديث الرخصة"
+  },
+  {
+    driverId: "ظ…-ظ،ظ ظ¦",
+    areaId: "area-ryd",
+    coverageType: "احتياطي",
+    startDate: "2026-07-01",
+    endDate: "2026-07-31",
+    timeWindow: "17:00 - 23:00",
+    priority: "أولوية منخفضة",
+    notes: "يحتاج مراجعة وثائق قبل الاعتماد"
   }
 ];
 
