@@ -596,6 +596,25 @@ a {
   gap: 10px;
 }
 
+.filter-select {
+  display: grid;
+  gap: 5px;
+  min-width: 132px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.filter-select select {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--slate);
+  padding: 7px 10px;
+  font-weight: 800;
+}
+
 .search-wrap {
   position: relative;
   min-width: min(100%, 320px);
@@ -642,6 +661,10 @@ a {
   width: 100%;
   border-collapse: collapse;
   min-width: 760px;
+}
+
+.drivers-table {
+  min-width: 1480px;
 }
 
 .data-table th,
@@ -717,6 +740,58 @@ a {
   position: relative;
   display: grid;
   gap: 12px;
+}
+
+.timeline article {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fff;
+}
+
+.timeline article p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.profile-tabs {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.upload-placeholder {
+  min-height: 88px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  color: var(--blue);
+  background: #f8fafc;
+  font-weight: 800;
+  text-align: center;
+  padding: 12px;
+}
+
+.upload-placeholder small {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.form-errors {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #fecdd3;
+  background: #fff1f2;
+  color: var(--red);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.form-errors p {
+  margin: 0;
+  font-weight: 800;
 }
 
 .timeline-item {
@@ -1160,6 +1235,7 @@ a {
   .toolbar,
   .toolbar-group,
   .search-wrap,
+  .filter-select,
   .primary-button,
   .secondary-button,
   .ghost-button,

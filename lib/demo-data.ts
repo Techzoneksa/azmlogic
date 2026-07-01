@@ -37,6 +37,15 @@ export type Order = {
   district: string;
   driver: string;
   vehicle: string;
+  coverageAreaId?: string;
+  assignedDriverId?: string;
+  assignmentStatus?: string;
+  assignmentHistory?: AssignmentHistoryItem[];
+  assignedAt?: string;
+  assignedBy?: string;
+  isDriverInArea?: boolean;
+  reassignmentRequired?: boolean;
+  vehicleId?: string;
   status: string;
   priority: string;
   pickupTime: string;
@@ -61,15 +70,36 @@ export type Parcel = {
   proof: string;
   driver: string;
   vehicle: string;
+  coverageAreaId?: string;
+  assignedDriverId?: string;
+  assignmentStatus?: string;
+  assignmentHistory?: AssignmentHistoryItem[];
+  assignedAt?: string;
+  assignedBy?: string;
+  isDriverInArea?: boolean;
+  reassignmentRequired?: boolean;
+  vehicleId?: string;
   status: string;
   notes: string;
+};
+
+export type AssignmentHistoryItem = {
+  time: string;
+  user: string;
+  action: string;
+  fromDriver: string;
+  toDriver: string;
+  note: string;
 };
 
 export type Driver = {
   id: string;
   name: string;
+  fullName?: string;
   phone: string;
+  mobile?: string;
   nationalId: string;
+  identityNumber?: string;
   identityType?: string;
   nationality?: string;
   birthDate?: string;
@@ -77,11 +107,14 @@ export type Driver = {
   email?: string;
   address?: string;
   emergencyContact?: string;
+  emergencyContactName?: string;
+  emergencyContactMobile?: string;
   type: string;
   agreementType?: string;
   baseSalary?: number;
   commissionPerOrder?: number;
   commissionPerParcel?: number;
+  dailyMinimum?: number;
   contractStartDate?: string;
   contractEndDate?: string;
   contractStatus?: string;
@@ -99,6 +132,10 @@ export type Driver = {
   documentStatus?: string;
   complianceStatus?: string;
   readinessRate?: number;
+  readinessScore?: number;
+  coverageType?: string;
+  coverageTime?: string;
+  driverStatus?: string;
   primaryAreaId?: string;
   secondaryAreaIds?: string[];
   vehicleId?: string;

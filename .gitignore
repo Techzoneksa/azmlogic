@@ -6,6 +6,9 @@ coverage
 .env
 .env*.local
 .agents
+PHASE_1_2_BACKUP/
+PHASE_1_3_HANDOFF/
+CRITICAL_DRIVERS_FIX_HANDOFF/
 .next-preview-*
 npm-debug.log*
 yarn-debug.log*
