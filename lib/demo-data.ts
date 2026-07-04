@@ -89,6 +89,7 @@ export type AssignmentHistoryItem = {
   action: string;
   fromDriver: string;
   toDriver: string;
+  area?: string;
   note: string;
 };
 

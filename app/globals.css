@@ -445,6 +445,15 @@ a {
   gap: 14px;
 }
 
+.detail-kpis {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.warning-card {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
 .card,
 .command-card,
 .table-card,

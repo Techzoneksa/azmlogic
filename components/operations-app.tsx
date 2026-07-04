@@ -428,22 +428,95 @@ export function OperationsApp() {
 
   function assignTask(taskId: string, driverName: string) {
     const driver = drivers.find((item) => item.name === driverName) ?? drivers[0];
+    const vehicle = vehicles.find((item) => item.id === driver.vehicleId || item.plate === driver.vehicle);
+    const buildHistory = (task: Order | Parcel, previousDriver: string) => {
+      const areaId = task.coverageAreaId ?? areaForLocation(task.city, task.district);
+      const inArea = driverCoversArea(driver.id, areaId);
+      return [
+        ...(task.assignmentHistory ?? assignmentHistoryFor(task)),
+        {
+          time: "الآن",
+          user: roleLabel,
+          action: previousDriver && !previousDriver.includes("غير") ? "تمت إعادة الإسناد" : "تم إسناد مندوب",
+          fromDriver: previousDriver || "غير مسند",
+          toDriver: driver.name,
+          area: areaName(areaId),
+          note: inArea ? "المندوب داخل منطقة التغطية" : "تم الإسناد خارج النطاق مع ملاحظة تشغيلية"
+        }
+      ];
+    };
     setOrders((current) =>
       current.map((order) =>
         order.id === taskId
-          ? { ...order, driver: driver.name, vehicle: driver.vehicle, status: "مسند إلى مندوب" }
+          ? {
+              ...order,
+              driver: driver.name,
+              vehicle: vehicle?.plate ?? driver.vehicle,
+              assignedDriverId: driver.id,
+              vehicleId: vehicle?.id ?? driver.vehicleId,
+              assignmentStatus: driverCoversArea(driver.id, order.coverageAreaId ?? areaForLocation(order.city, order.district)) ? "مسند" : "خارج نطاق المندوب",
+              assignedAt: "الآن",
+              assignedBy: roleLabel,
+              isDriverInArea: driverCoversArea(driver.id, order.coverageAreaId ?? areaForLocation(order.city, order.district)),
+              reassignmentRequired: !driverCoversArea(driver.id, order.coverageAreaId ?? areaForLocation(order.city, order.district)),
+              assignmentHistory: buildHistory(order, order.driver),
+              status: order.status === "جديد" ? "مسند إلى مندوب" : order.status
+            }
           : order
       )
     );
     setParcels((current) =>
       current.map((parcel) =>
         parcel.id === taskId
-          ? { ...parcel, driver: driver.name, vehicle: driver.vehicle, status: "مسند إلى مندوب" }
+          ? {
+              ...parcel,
+              driver: driver.name,
+              vehicle: vehicle?.plate ?? driver.vehicle,
+              assignedDriverId: driver.id,
+              vehicleId: vehicle?.id ?? driver.vehicleId,
+              assignmentStatus: driverCoversArea(driver.id, parcel.coverageAreaId ?? areaForLocation(parcel.city, parcel.district)) ? "مسند" : "خارج نطاق المندوب",
+              assignedAt: "الآن",
+              assignedBy: roleLabel,
+              isDriverInArea: driverCoversArea(driver.id, parcel.coverageAreaId ?? areaForLocation(parcel.city, parcel.district)),
+              reassignmentRequired: !driverCoversArea(driver.id, parcel.coverageAreaId ?? areaForLocation(parcel.city, parcel.district)),
+              assignmentHistory: buildHistory(parcel, parcel.driver),
+              status: parcel.status === "جاهز للتوزيع" ? "مسند إلى مندوب" : parcel.status
+            }
           : parcel
       )
     );
     toast("تم إسناد المهمة للمندوب");
     addLog("إسناد لمندوب", taskId, `تم إسناد المهمة إلى ${driver.name}`);
+  }
+
+  function unassignTask(taskId: string) {
+    const clearAssignment = (task: Order | Parcel) => ({
+      driver: "غير مسند",
+      vehicle: "غير محدد",
+      assignedDriverId: "",
+      vehicleId: "",
+      assignmentStatus: "غير مسند",
+      assignedAt: "غير مسند",
+      assignedBy: roleLabel,
+      isDriverInArea: false,
+      reassignmentRequired: true,
+      assignmentHistory: [
+        ...(task.assignmentHistory ?? assignmentHistoryFor(task)),
+        {
+          time: "الآن",
+          user: roleLabel,
+          action: "تم فك الإسناد",
+          fromDriver: task.driver,
+          toDriver: "غير مسند",
+          area: areaName(task.coverageAreaId ?? areaForLocation(task.city, task.district)),
+          note: "تم فك إسناد المهمة وإعادتها لقائمة المهام غير المسندة"
+        }
+      ]
+    });
+    setOrders((current) => current.map((order) => order.id === taskId ? { ...order, ...clearAssignment(order) } : order));
+    setParcels((current) => current.map((parcel) => parcel.id === taskId ? { ...parcel, ...clearAssignment(parcel) } : parcel));
+    addLog("فك الإسناد", taskId, "تم فك إسناد المهمة وإعادتها لقائمة غير المسند");
+    toast("تم فك الإسناد");
   }
 
   function recordFailedAttempt(taskId: string) {
@@ -679,12 +752,40 @@ export function OperationsApp() {
     ];
   }
 
+  function availableDriversForArea(areaId: string) {
+    return drivers.filter((driver) => {
+      const ready = !driver.status.includes("موقوف") && !driver.status.includes("خارج");
+      return ready && driverCoversArea(driver.id, areaId);
+    });
+  }
+
+  function driverSuitability(driver: Driver | undefined, areaId: string) {
+    if (!driver) {
+      return {
+        label: "لا يوجد مندوب",
+        warnings: ["لا يوجد مندوب مسند لهذه المهمة"]
+      };
+    }
+    const warnings = [
+      !driverCoversArea(driver.id, areaId) ? "المندوب خارج منطقة التغطية" : "",
+      (driver.licenseStatus ?? driverCompliance(driver)).includes("منتهي") ? "رخصة المندوب منتهية" : "",
+      (driver.identityStatus ?? driverCompliance(driver)).includes("منتهي") ? "هوية المندوب منتهية" : "",
+      driver.status.includes("مشغول") ? "المندوب مشغول" : "",
+      driver.vehicle.includes("غير") ? "المركبة غير جاهزة" : ""
+    ].filter(Boolean);
+    return {
+      label: warnings.length ? (warnings.length > 1 ? "غير مناسب" : "مناسب مع ملاحظة") : "مناسب",
+      warnings
+    };
+  }
+
   const allTasks = [
     ...orders.map((order) => {
       const meta = assignmentMeta(order);
       return {
         id: order.id,
         taskType: "طلب",
+        href: `/orders/${routeId(order.id)}`,
         partner: order.partner,
         pickup: order.pickup,
         delivery: order.delivery,
@@ -705,6 +806,7 @@ export function OperationsApp() {
       return {
         id: parcel.id,
         taskType: "طرد",
+        href: `/parcels/${routeId(parcel.id)}`,
         partner: parcel.partner,
         pickup: parcel.pickup,
         delivery: parcel.delivery,
@@ -1638,7 +1740,7 @@ export function OperationsApp() {
             </div>
             {assigned.map((task) => (
               <article className="task-card" key={task.id}>
-                <h4>{task.id}</h4>
+                <h4>{task.href ? <Link href={task.href}>{task.id}</Link> : task.id}</h4>
                 <div className="task-meta">
                   <Badge>{task.status}</Badge>
                   <Badge>{task.taskType}</Badge>
@@ -1674,6 +1776,12 @@ export function OperationsApp() {
                   </div>
                 </dl>
                 <div className="row-actions">
+                  {task.href ? (
+                    <Link className="ghost-button" href={task.href}>
+                      <Eye size={18} />
+                      التفاصيل
+                    </Link>
+                  ) : null}
                   <button className="ghost-button" type="button" onClick={() => assignTask(task.id, availableDrivers[0].name)}>
                     <RefreshCw size={18} />
                     إعادة إسناد
@@ -2513,6 +2621,11 @@ export function OperationsApp() {
     const meta = assignmentMeta(order);
     const history = assignmentHistoryFor(order);
     const driver = drivers.find((item) => item.id === meta.assignedDriverId);
+    const areaId = meta.coverageAreaId;
+    const area = coverageAreas.find((item) => item.id === areaId);
+    const availableInArea = availableDriversForArea(areaId);
+    const suitability = driverSuitability(driver, areaId);
+    const linkedVehicle = vehicles.find((item) => item.id === meta.vehicleId || item.plate === meta.vehicleLabel);
 
     return (
       <div className="page-grid">
@@ -2522,7 +2635,11 @@ export function OperationsApp() {
               <h3>{order.id}</h3>
               <p>{order.partner} · {order.type} · {order.city} · {order.district}</p>
             </div>
-            <Badge>{order.status}</Badge>
+            <div className="row-actions">
+              <Badge>{order.status}</Badge>
+              <Badge>{meta.assignmentStatus}</Badge>
+              <Link className="ghost-button" href="/orders"><ChevronLeft size={18} />رجوع للطلبات</Link>
+            </div>
           </div>
           <div className="task-meta">
             <Badge>{meta.assignmentStatus}</Badge>
@@ -2535,12 +2652,56 @@ export function OperationsApp() {
               <Send size={18} />
               {meta.assignedDriverId ? "إعادة إسناد الطلب" : "إسناد الطلب"}
             </button>
+            <button className="ghost-button" type="button" onClick={() => unassignTask(order.id)}>
+              <RefreshCw size={18} />
+              فك الإسناد
+            </button>
+            <button className="ghost-button" type="button" onClick={() => {
+              addLog("ملاحظة إسناد", order.id, "تمت إضافة ملاحظة تشغيلية على إسناد الطلب");
+              toast("تم حفظ ملاحظة الإسناد");
+            }}>
+              <Activity size={18} />
+              إضافة ملاحظة
+            </button>
             <button className="danger-button" type="button" onClick={() => recordFailedAttempt(order.id)}>
               <AlertTriangle size={18} />
               تسجيل تعثر
             </button>
+            <button className="ghost-button" type="button" onClick={() => recordReturn(order.id)}>
+              <RotateCcw size={18} />
+              تسجيل مرتجع
+            </button>
           </div>
         </section>
+
+        <section className="kpi-grid detail-kpis">
+          {[
+            ["الشريك", order.partner],
+            ["المنطقة", meta.coverageAreaName],
+            ["المندوب المسند", meta.assignedDriverName],
+            ["المركبة", meta.vehicleLabel],
+            ["وقت التسليم المتوقع", order.deliveryTime],
+            ["توافق المندوب", suitability.label]
+          ].map(([label, value]) => (
+            <article className="card kpi-card" key={label}>
+              <h3>{label}</h3>
+              <div className="kpi-value" style={{ fontSize: 22 }}>{value}</div>
+            </article>
+          ))}
+        </section>
+
+        {suitability.warnings.length ? (
+          <section className="command-card warning-card">
+            <div className="card-header">
+              <div>
+                <h3>{driver ? "تنبيهات توافق المندوب" : "لا يوجد مندوب مسند لهذه المهمة"}</h3>
+                <p>{driver ? "راجع هذه الملاحظات قبل اعتماد الإسناد أو إعادة الإسناد." : "اختر مندوبًا مناسبًا من نفس منطقة التغطية."}</p>
+              </div>
+              <Badge>{suitability.label}</Badge>
+            </div>
+            <div className="task-meta">{suitability.warnings.map((warning) => <Badge key={warning}>{warning}</Badge>)}</div>
+          </section>
+        ) : null}
 
         <section className="section-grid">
           <InfoPanel
@@ -2561,8 +2722,12 @@ export function OperationsApp() {
               field("جوال العميل", order.phone),
               field("نقطة الاستلام", order.pickup),
               field("عنوان التسليم", order.delivery),
+              field("ملاحظة العنوان", order.notes),
               field("المدينة", order.city),
-              field("الحي", order.district)
+              field("الحي", order.district),
+              field("منطقة التغطية", meta.coverageAreaName),
+              field("هل المنطقة مغطاة؟", area && area.assignedDriverIds.length ? "نعم" : "تحتاج تغطية"),
+              field("المناديب المتاحون في نفس المنطقة", availableInArea.map((item) => item.name).join("، ") || "لا يوجد مناديب متاحون")
             ]}
           />
         </section>
@@ -2575,9 +2740,18 @@ export function OperationsApp() {
               field("منطقة التغطية", meta.coverageAreaName),
               field("حالة الإسناد", meta.assignmentStatus),
               field("المندوب المسند", meta.assignedDriverName),
+              field("حالة المندوب", driver?.status ?? "غير مسند"),
+              field("رقم الجوال", driver?.phone ?? "غير مسند"),
+              field("منطقة المندوب الأساسية", driver ? areaName(primaryAssignment(driver.id)?.areaId ?? driver.primaryAreaId) : "غير مسند"),
+              field("مناطق إضافية", driver?.secondaryAreaIds?.map((item) => areaName(item)).join("، ") || "لا توجد"),
               field("جاهزية المندوب", driver ? percent(driverReadiness(driver)) : "غير مسند"),
               field("امتثال المندوب", driver ? driverCompliance(driver) : "غير مسند"),
+              field("حالة الرخصة", driver?.licenseStatus ?? (driver ? driverCompliance(driver) : "غير مسند")),
+              field("حالة الهوية", driver?.identityStatus ?? (driver ? driverCompliance(driver) : "غير مسند")),
+              field("حالة العقد", driver?.contractStatus ?? (driver ? "ساري" : "غير مسند")),
               field("المركبة", meta.vehicleLabel),
+              field("حالة المركبة", linkedVehicle?.status ?? "غير محدد"),
+              field("هل مناسب لهذه المهمة؟", suitability.label),
               field("وقت الإسناد", meta.assignedAt),
               field("المسند بواسطة", meta.assignedBy)
             ]}
@@ -2589,11 +2763,46 @@ export function OperationsApp() {
                 <article key={`${item.time}-${item.action}`}>
                   <strong>{item.action}</strong>
                   <p>{item.time} · {item.user}</p>
-                  <p className="muted">{item.fromDriver} ← {item.toDriver} · {item.note}</p>
+                  <p className="muted">{item.fromDriver} ← {item.toDriver} · {item.area ?? meta.coverageAreaName} · {item.note}</p>
                 </article>
               ))}
             </div>
           </section>
+        </section>
+
+        <section className="command-card">
+          <div className="card-header">
+            <div>
+              <h3>إسناد أو إعادة إسناد تجريبية</h3>
+              <p>اختر مندوبًا وشاهد توافقه مع منطقة الطلب قبل الحفظ.</p>
+            </div>
+            <Badge>{meta.coverageAreaName}</Badge>
+          </div>
+          <div className="three-grid">
+            {drivers.slice(0, 6).map((candidate) => {
+              const candidateSuitability = driverSuitability(candidate, areaId);
+              return (
+                <article className="task-card" key={candidate.id}>
+                  <h4>{candidate.name}</h4>
+                  <div className="task-meta">
+                    <Badge>{candidate.status}</Badge>
+                    <Badge>{candidateSuitability.label}</Badge>
+                  </div>
+                  <dl className="compact-list">
+                    <div><dt>منطقته</dt><dd>{areaName(primaryAssignment(candidate.id)?.areaId ?? candidate.primaryAreaId)}</dd></div>
+                    <div><dt>المهمة</dt><dd>{meta.coverageAreaName}</dd></div>
+                    <div><dt>الجاهزية</dt><dd>{percent(driverReadiness(candidate))}</dd></div>
+                    <div><dt>الوثائق</dt><dd>{driverCompliance(candidate)}</dd></div>
+                  </dl>
+                  {candidateSuitability.warnings.length ? <p className="muted">{candidateSuitability.warnings.join("، ")}</p> : null}
+                  <button className="primary-button" type="button" onClick={() => assignTask(order.id, candidate.name)}>
+                    <Send size={18} />
+                    إسناد إلى {candidate.name}
+                  </button>
+                </article>
+              );
+            })}
+          </div>
         </section>
       </div>
     );
@@ -2606,6 +2815,13 @@ export function OperationsApp() {
     const meta = assignmentMeta(parcel);
     const history = assignmentHistoryFor(parcel);
     const driver = drivers.find((item) => item.id === meta.assignedDriverId);
+    const areaId = meta.coverageAreaId;
+    const area = coverageAreas.find((item) => item.id === areaId);
+    const suitability = driverSuitability(driver, areaId);
+    const linkedVehicle = vehicles.find((item) => item.id === meta.vehicleId || item.plate === meta.vehicleLabel);
+    const linkedDocument = documents.find((item) => item.taskId === parcel.id);
+    const relatedAttempts = attempts.filter((item) => item.taskId === parcel.id);
+    const relatedReturns = returns.filter((item) => item.taskId === parcel.id);
 
     return (
       <div className="page-grid">
@@ -2615,7 +2831,11 @@ export function OperationsApp() {
               <h3>{parcel.id}</h3>
               <p>{parcel.partner} · {parcel.tracking} · {parcel.city} · {parcel.district}</p>
             </div>
-            <Badge>{parcel.status}</Badge>
+            <div className="row-actions">
+              <Badge>{parcel.status}</Badge>
+              <Badge>{meta.assignmentStatus}</Badge>
+              <Link className="ghost-button" href="/parcels"><ChevronLeft size={18} />رجوع للطرود</Link>
+            </div>
           </div>
           <div className="task-meta">
             <Badge>{meta.assignmentStatus}</Badge>
@@ -2628,12 +2848,54 @@ export function OperationsApp() {
               <Send size={18} />
               {meta.assignedDriverId ? "إعادة إسناد الطرد" : "إسناد الطرد"}
             </button>
-            <button className="ghost-button" type="button" onClick={() => createTransportDraft()}>
+            <button className="ghost-button" type="button" onClick={() => unassignTask(parcel.id)}>
+              <RefreshCw size={18} />
+              فك الإسناد
+            </button>
+            <button className="ghost-button" type="button" onClick={() => createTransportDraft(parcel.id)}>
               <FileText size={18} />
               مسودة وثيقة
             </button>
+            <button className="danger-button" type="button" onClick={() => recordFailedAttempt(parcel.id)}>
+              <AlertTriangle size={18} />
+              تسجيل محاولة فاشلة
+            </button>
+            <button className="ghost-button" type="button" onClick={() => recordReturn(parcel.id)}>
+              <RotateCcw size={18} />
+              تسجيل مرتجع
+            </button>
           </div>
         </section>
+
+        <section className="kpi-grid detail-kpis">
+          {[
+            ["الشريك", parcel.partner],
+            ["المنطقة", meta.coverageAreaName],
+            ["المندوب المسند", meta.assignedDriverName],
+            ["المركبة", meta.vehicleLabel],
+            ["الوزن", parcel.weight],
+            ["عدد القطع", parcel.pieces],
+            ["توافق المندوب", suitability.label]
+          ].map(([label, value]) => (
+            <article className="card kpi-card" key={label}>
+              <h3>{label}</h3>
+              <div className="kpi-value" style={{ fontSize: 22 }}>{value}</div>
+            </article>
+          ))}
+        </section>
+
+        {suitability.warnings.length ? (
+          <section className="command-card warning-card">
+            <div className="card-header">
+              <div>
+                <h3>{driver ? "تنبيهات توافق المندوب" : "لا يوجد مندوب مسند لهذه المهمة"}</h3>
+                <p>{driver ? "راجع هذه الملاحظات قبل اعتماد الإسناد أو إعادة الإسناد." : "اختر مندوبًا مناسبًا من نفس منطقة التغطية."}</p>
+              </div>
+              <Badge>{suitability.label}</Badge>
+            </div>
+            <div className="task-meta">{suitability.warnings.map((warning) => <Badge key={warning}>{warning}</Badge>)}</div>
+          </section>
+        ) : null}
 
         <section className="section-grid">
           <InfoPanel
@@ -2649,14 +2911,18 @@ export function OperationsApp() {
             ]}
           />
           <InfoPanel
-            title="الموقع والعميل"
+            title="المرسل والمستلم"
             fields={[
-              field("العميل", parcel.customer),
-              field("جوال العميل", parcel.phone),
+              field("المرسل", parcel.partner),
+              field("جوال المرسل", "محجوب للعرض التجريبي"),
               field("نقطة الاستلام", parcel.pickup),
+              field("المستلم", parcel.customer),
+              field("جوال المستلم", parcel.phone),
               field("عنوان التسليم", parcel.delivery),
               field("المدينة", parcel.city),
-              field("الحي", parcel.district)
+              field("الحي", parcel.district),
+              field("منطقة التغطية", meta.coverageAreaName),
+              field("هل المنطقة مغطاة؟", area && area.assignedDriverIds.length ? "نعم" : "تحتاج تغطية")
             ]}
           />
         </section>
@@ -2669,9 +2935,18 @@ export function OperationsApp() {
               field("منطقة التغطية", meta.coverageAreaName),
               field("حالة الإسناد", meta.assignmentStatus),
               field("المندوب المسند", meta.assignedDriverName),
+              field("حالة المندوب", driver?.status ?? "غير مسند"),
+              field("رقم الجوال", driver?.phone ?? "غير مسند"),
+              field("منطقة المندوب الأساسية", driver ? areaName(primaryAssignment(driver.id)?.areaId ?? driver.primaryAreaId) : "غير مسند"),
+              field("مناطق إضافية", driver?.secondaryAreaIds?.map((item) => areaName(item)).join("، ") || "لا توجد"),
               field("جاهزية المندوب", driver ? percent(driverReadiness(driver)) : "غير مسند"),
               field("امتثال المندوب", driver ? driverCompliance(driver) : "غير مسند"),
+              field("حالة الرخصة", driver?.licenseStatus ?? (driver ? driverCompliance(driver) : "غير مسند")),
+              field("حالة الهوية", driver?.identityStatus ?? (driver ? driverCompliance(driver) : "غير مسند")),
+              field("حالة العقد", driver?.contractStatus ?? (driver ? "ساري" : "غير مسند")),
               field("المركبة", meta.vehicleLabel),
+              field("حالة المركبة", linkedVehicle?.status ?? "غير محدد"),
+              field("هل مناسب لهذه المهمة؟", suitability.label),
               field("وقت الإسناد", meta.assignedAt),
               field("المسند بواسطة", meta.assignedBy)
             ]}
@@ -2683,11 +2958,75 @@ export function OperationsApp() {
                 <article key={`${item.time}-${item.action}`}>
                   <strong>{item.action}</strong>
                   <p>{item.time} · {item.user}</p>
-                  <p className="muted">{item.fromDriver} ← {item.toDriver} · {item.note}</p>
+                  <p className="muted">{item.fromDriver} ← {item.toDriver} · {item.area ?? meta.coverageAreaName} · {item.note}</p>
                 </article>
               ))}
             </div>
           </section>
+        </section>
+
+        <section className="section-grid">
+          <InfoPanel
+            title="وثيقة النقل المرتبطة"
+            note={linkedDocument ? "مسودة محلية محفوظة دون إرسال لأي جهة خارجية." : "لا توجد وثيقة نقل مرتبطة."}
+            fields={[
+              field("رقم الوثيقة الداخلي", linkedDocument?.id ?? "لا توجد وثيقة نقل مرتبطة"),
+              field("حالة الوثيقة", linkedDocument?.status ?? "غير منشأة"),
+              field("رقم وثيقة بيان", linkedDocument?.bayanNumber || "لا يوجد رقم رسمي"),
+              field("الجهة المصدرة", linkedDocument?.issuer || "مسودة داخلية"),
+              field("ملاحظات", linkedDocument?.notes ?? "يمكن إنشاء مسودة وثيقة نقل تجريبية")
+            ]}
+          />
+          <section className="command-card">
+            <div className="card-header"><div><h3>محاولات التسليم والمرتجعات</h3><p>سجلات مرتبطة بالطرد من بيانات العرض المحلية.</p></div></div>
+            {[...relatedAttempts, ...relatedReturns].length ? (
+              <div className="timeline">
+                {relatedAttempts.map((item) => (
+                  <article key={item.id}><strong>{item.result}</strong><p>{item.time} · {item.driver}</p><p className="muted">{item.reason} · {item.notes}</p></article>
+                ))}
+                {relatedReturns.map((item) => (
+                  <article key={item.id}><strong>{item.status}</strong><p>{item.date} · {item.driver}</p><p className="muted">{item.reason} · {item.notes}</p></article>
+                ))}
+              </div>
+            ) : (
+              <EmptyState title="لا توجد محاولات أو مرتجعات مرتبطة" text="لا توجد سجلات متابعة لهذا الطرد حتى الآن" icon={ClipboardList} />
+            )}
+          </section>
+        </section>
+
+        <section className="command-card">
+          <div className="card-header">
+            <div>
+              <h3>إسناد أو إعادة إسناد تجريبية</h3>
+              <p>اختر مندوبًا وشاهد توافقه مع منطقة الطرد قبل الحفظ.</p>
+            </div>
+            <Badge>{meta.coverageAreaName}</Badge>
+          </div>
+          <div className="three-grid">
+            {drivers.slice(0, 6).map((candidate) => {
+              const candidateSuitability = driverSuitability(candidate, areaId);
+              return (
+                <article className="task-card" key={candidate.id}>
+                  <h4>{candidate.name}</h4>
+                  <div className="task-meta">
+                    <Badge>{candidate.status}</Badge>
+                    <Badge>{candidateSuitability.label}</Badge>
+                  </div>
+                  <dl className="compact-list">
+                    <div><dt>منطقته</dt><dd>{areaName(primaryAssignment(candidate.id)?.areaId ?? candidate.primaryAreaId)}</dd></div>
+                    <div><dt>المهمة</dt><dd>{meta.coverageAreaName}</dd></div>
+                    <div><dt>الجاهزية</dt><dd>{percent(driverReadiness(candidate))}</dd></div>
+                    <div><dt>الوثائق</dt><dd>{driverCompliance(candidate)}</dd></div>
+                  </dl>
+                  {candidateSuitability.warnings.length ? <p className="muted">{candidateSuitability.warnings.join("، ")}</p> : null}
+                  <button className="primary-button" type="button" onClick={() => assignTask(parcel.id, candidate.name)}>
+                    <Send size={18} />
+                    إسناد إلى {candidate.name}
+                  </button>
+                </article>
+              );
+            })}
+          </div>
         </section>
       </div>
     );
@@ -3907,6 +4246,7 @@ function DispatchTaskCard({
   task: {
     id: string;
     taskType: string;
+    href?: string;
     partner: string;
     pickup: string;
     delivery: string;
@@ -3924,12 +4264,13 @@ function DispatchTaskCard({
   const firstDriver = drivers[0]?.name ?? "غير محدد";
   return (
     <article className="task-card">
-      <h4>{task.id}</h4>
+      <h4>{task.href ? <Link href={task.href}>{task.id}</Link> : task.id}</h4>
       <div className="task-meta">
         <Badge>{task.taskType}</Badge>
         <Badge>{task.status}</Badge>
         <Badge>{task.priority}</Badge>
         {task.assignmentStatus ? <Badge>{task.assignmentStatus}</Badge> : null}
+        {task.relationship?.includes("خارج") ? <Badge>تحذير نطاق</Badge> : null}
       </div>
       <dl className="compact-list">
         <div>
@@ -3970,6 +4311,12 @@ function DispatchTaskCard({
         ))}
       </div>
       <p className="muted">إذا كان المندوب خارج منطقة التغطية الأساسية تظهر ملاحظة تجاوز تجريبية قبل الاعتماد.</p>
+      {task.href ? (
+        <Link className="ghost-button" href={task.href}>
+          <Eye size={18} />
+          فتح التفاصيل
+        </Link>
+      ) : null}
       <button className="primary-button" type="button" onClick={() => onAssign(task.id, firstDriver)}>
         <Send size={18} />
         إسناد إلى {firstDriver}
