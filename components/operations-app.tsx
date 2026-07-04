@@ -3927,6 +3927,7 @@ export function OperationsApp() {
   }
 
   function SettingsPage() {
+    const dataModeLabel = process.env.NEXT_PUBLIC_DATA_MODE === "database" ? "وضع البيانات: قاعدة بيانات" : "وضع البيانات: تجريبي";
     const permissions = [
       "عرض",
       "إنشاء",
@@ -3985,6 +3986,10 @@ export function OperationsApp() {
               <div>
                 <dt>قاعدة البيانات</dt>
                 <dd>جاهزة للإضافة لاحقا</dd>
+              </div>
+              <div>
+                <dt>وضع البيانات</dt>
+                <dd>{dataModeLabel}</dd>
               </div>
               <div>
                 <dt>أسرار الربط</dt>

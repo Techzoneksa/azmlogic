@@ -86,3 +86,68 @@ npm run start
 ## ملاحظة Phase 1.2
 
 وحدة المناديب الرئيسية ووحدة المناطق والتغطية تعملان كواجهة Demo محلية ضمن Next.js. لا تعتمد هذه المرحلة على قاعدة بيانات، ولا ترسل ملفات مرفوعة، ولا تستخدم خرائط أو تتبع GPS أو ربط بيان فعلي. عند النشر على Hostinger يكفي الالتزام بأوامر `npm install` و`npm run build` و`npm run start` مع إبقاء الأسرار خارج Git.
+## ملحق Phase 2 — قاعدة البيانات وPrisma
+
+في Phase 2 تمت إضافة أساس PostgreSQL/Prisma مع بقاء الواجهة قادرة على العمل في وضع البيانات التجريبي عند عدم ضبط قاعدة البيانات.
+
+### متغيرات البيئة المطلوبة
+
+```env
+NODE_ENV=production
+NEXT_PUBLIC_APP_URL=https://azmapp.promksa.com
+NEXT_PUBLIC_DATA_MODE=database
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE?schema=public
+DIRECT_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE?schema=public
+JWT_SECRET=change-this-long-random-secret
+BAYAN_SERVICE_URL=
+BAYAN_CLIENT_ID=
+BAYAN_CLIENT_SECRET=
+```
+
+لا يتم استخدام متغيرات بيان لإجراء أي اتصال فعلي في هذه المرحلة، ويجب إبقاؤها فارغة أو غير مفعلة حتى مرحلة التكامل الرسمية.
+
+### أوامر النشر بعد Pull
+
+```bash
+npm install
+npm run db:generate
+npm run db:push
+npm run db:seed
+npm run build
+```
+
+إذا كانت قاعدة الإنتاج تحتوي بيانات حقيقية لاحقاً، لا تشغل `db:seed` قبل أخذ نسخة احتياطية ومراجعة الخطة.
+
+### إعادة التشغيل على Hostinger
+
+إذا كان تطبيق Node.js يستخدم مجلد `nodejs/tmp`:
+
+```bash
+touch ~/domains/azmapp.promksa.com/nodejs/tmp/restart.txt
+```
+
+إذا كان يستخدم PM2، أعد تشغيل عملية AZM فقط بعد التأكد من الاسم:
+
+```bash
+pm2 list
+pm2 restart <azm-process-name>
+```
+
+لا تعيد تشغيل مشاريع أخرى ولا تلمس `albaariz.com`.
+
+### التحقق بعد النشر
+
+- افتح `/settings` وتأكد من ظهور وضع البيانات.
+- افتح `/api/foundation/status` وتأكد أن الاستجابة عربية وآمنة.
+- افتح `/drivers` وتأكد أنها صفحة إدارة المناديب.
+- افتح `/driver` وتأكد أنها تجربة المندوب.
+- افتح `/bayan-readiness` وتأكد أنها تعرض غير مربوط / قيد التجهيز ولا توجد مزامنة فعلية.
+
+### أوامر فحص Prisma
+
+```bash
+npx prisma validate
+npx prisma generate
+```
+
+إذا لم يتم ضبط `DATABASE_URL` في بيئة الفحص، استخدم قيمة PostgreSQL مؤقتة للتحقق من schema فقط.

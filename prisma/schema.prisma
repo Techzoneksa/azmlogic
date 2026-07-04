@@ -1,0 +1,555 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(cuid())
+  name         String
+  email        String        @unique
+  mobile       String?
+  passwordHash String?
+  status       String        @default("نشط")
+  driverId     String?
+  driver       Driver?       @relation(fields: [driverId], references: [id])
+  roles        UserRole[]
+  sessions     AuthSession[]
+  activityLogs ActivityLog[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  key         String           @unique
+  name        String
+  description String?
+  users       UserRole[]
+  permissions RolePermission[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  key         String           @unique
+  name        String
+  description String?
+  roles       RolePermission[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model UserRole {
+  userId    String
+  roleId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, roleId])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@id([roleId, permissionId])
+}
+
+model AuthSession {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Partner {
+  id              String              @id @default(cuid())
+  externalId      String?             @unique
+  name            String
+  type            String
+  contactName     String?
+  mobile          String?
+  email           String?
+  city            String
+  status          String              @default("نشط")
+  contractType    String?
+  notes           String?
+  contacts        PartnerContact[]
+  contracts       PartnerContract[]
+  orders          Order[]
+  parcels         Parcel[]
+  documents       TransportDocument[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+}
+
+model PartnerContact {
+  id        String   @id @default(cuid())
+  partnerId String
+  partner   Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  name      String
+  mobile    String?
+  email     String?
+  role      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PartnerContract {
+  id        String   @id @default(cuid())
+  partnerId String
+  partner   Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  type      String
+  status    String
+  startDate DateTime?
+  endDate   DateTime?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Driver {
+  id                       String                 @id @default(cuid())
+  externalId               String?                @unique
+  fullName                 String
+  mobile                   String
+  identityNumber           String?
+  identityType             String?
+  nationality              String?
+  birthDate                DateTime?
+  age                      Int?
+  email                    String?
+  city                     String
+  address                  String?
+  emergencyContactName     String?
+  emergencyContactMobile   String?
+  licenseNumber            String?
+  licenseType              String?
+  licenseIssueDate         DateTime?
+  licenseExpiryDate        DateTime?
+  licenseStatus            String?
+  identityExpiryDate       DateTime?
+  identityStatus           String?
+  agreementType            String?
+  baseSalary               Decimal?               @db.Decimal(12, 2)
+  commissionPerOrder       Decimal?               @db.Decimal(12, 2)
+  commissionPerParcel      Decimal?               @db.Decimal(12, 2)
+  dailyMinimum             Int?
+  contractStartDate        DateTime?
+  contractEndDate          DateTime?
+  contractStatus           String?
+  workType                 String?
+  workHours                String?
+  workDays                 String?
+  offDays                  String?
+  primaryAreaId            String?
+  primaryArea              CoverageArea?          @relation("PrimaryDriverArea", fields: [primaryAreaId], references: [id])
+  driverStatus             String                 @default("نشط")
+  readinessScore           Int?
+  notes                    String?
+  users                    User[]
+  documents                DriverDocument[]
+  agreements               DriverAgreement[]
+  areaAssignments          DriverAreaAssignment[]
+  activities               DriverActivity[]
+  vehicleAssignments       VehicleAssignment[]
+  linkedVehicles           Vehicle[]              @relation("LinkedDriverVehicle")
+  orders                   Order[]
+  parcels                  Parcel[]
+  dispatchTasks            DispatchTask[]
+  deliveryAttempts         DeliveryAttempt[]
+  returnRequests           ReturnRequest[]
+  transportDocuments       TransportDocument[]
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+}
+
+model DriverDocument {
+  id        String   @id @default(cuid())
+  driverId  String
+  driver    Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  type      String
+  status    String
+  fileUrl   String?
+  expiresAt DateTime?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DriverAgreement {
+  id        String   @id @default(cuid())
+  driverId  String
+  driver    Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  type      String
+  status    String
+  startDate DateTime?
+  endDate   DateTime?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DriverAreaAssignment {
+  id           String       @id @default(cuid())
+  driverId     String
+  areaId       String
+  driver       Driver       @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  area         CoverageArea @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  coverageType String
+  startDate    DateTime?
+  endDate      DateTime?
+  timeWindow   String?
+  priority     String?
+  notes        String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@unique([driverId, areaId])
+}
+
+model DriverActivity {
+  id        String   @id @default(cuid())
+  driverId  String
+  driver    Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  action    String
+  status    String?
+  notes     String?
+  createdAt DateTime @default(now())
+}
+
+model Vehicle {
+  id                 String              @id @default(cuid())
+  externalId         String?             @unique
+  plateNumber        String
+  plateRightLetter   String?
+  plateMiddleLetter  String?
+  plateLeftLetter    String?
+  vehicleType        String
+  brand              String?
+  model              String?
+  year               Int?
+  status             String              @default("نشط")
+  insuranceStatus    String?
+  registrationStatus String?
+  inspectionStatus   String?
+  linkedDriverId     String?
+  linkedDriver       Driver?             @relation("LinkedDriverVehicle", fields: [linkedDriverId], references: [id])
+  notes              String?
+  assignments        VehicleAssignment[]
+  orders             Order[]
+  parcels            Parcel[]
+  dispatchTasks      DispatchTask[]
+  transportDocuments TransportDocument[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+}
+
+model VehicleAssignment {
+  id        String   @id @default(cuid())
+  vehicleId String
+  driverId  String
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  driver    Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  status    String
+  startDate DateTime?
+  endDate   DateTime?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CoverageArea {
+  id                 String                 @id @default(cuid())
+  externalId         String?                @unique
+  name               String
+  city               String
+  status             String                 @default("نشط")
+  coverageType       String?
+  capacity           Int?
+  notes              String?
+  primaryDrivers     Driver[]               @relation("PrimaryDriverArea")
+  neighborhoods      AreaNeighborhood[]
+  pickupPoints       AreaPickupPoint[]
+  driverAssignments  DriverAreaAssignment[]
+  orders             Order[]
+  parcels            Parcel[]
+  dispatchTasks      DispatchTask[]
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+}
+
+model AreaNeighborhood {
+  id        String       @id @default(cuid())
+  areaId    String
+  area      CoverageArea @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime     @default(now())
+}
+
+model AreaPickupPoint {
+  id        String       @id @default(cuid())
+  areaId    String
+  area      CoverageArea @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  name      String
+  city      String?
+  district  String?
+  address   String?
+  contact   String?
+  mobile    String?
+  status    String       @default("نشط")
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+}
+
+model Order {
+  id                   String                 @id @default(cuid())
+  internalRef          String                 @unique
+  partnerOrderRef      String?
+  partnerId            String?
+  partner              Partner?               @relation(fields: [partnerId], references: [id])
+  orderType            String
+  customerName         String
+  customerMobile       String?
+  pickupPoint          String
+  deliveryAddress      String
+  city                 String
+  district             String
+  coverageAreaId       String?
+  coverageArea         CoverageArea?          @relation(fields: [coverageAreaId], references: [id])
+  assignedDriverId     String?
+  assignedDriver       Driver?                @relation(fields: [assignedDriverId], references: [id])
+  vehicleId            String?
+  vehicle              Vehicle?               @relation(fields: [vehicleId], references: [id])
+  assignmentStatus     String?
+  status               String
+  priority             String?
+  expectedDeliveryAt   DateTime?
+  assignedAt           DateTime?
+  assignedBy           String?
+  isDriverInArea       Boolean                @default(false)
+  reassignmentRequired Boolean                @default(false)
+  notes                String?
+  assignmentHistory    OrderAssignmentHistory[]
+  statusHistory        OrderStatusHistory[]
+  dispatchTasks        DispatchTask[]
+  deliveryAttempts     DeliveryAttempt[]
+  returnRequests       ReturnRequest[]
+  transportDocuments   TransportDocument[]
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+}
+
+model OrderAssignmentHistory {
+  id             String   @id @default(cuid())
+  orderId        String
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fromDriverName String?
+  toDriverName   String?
+  areaName       String?
+  action         String
+  userName       String?
+  note           String?
+  createdAt      DateTime @default(now())
+}
+
+model OrderStatusHistory {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status    String
+  notes     String?
+  createdAt DateTime @default(now())
+}
+
+model Parcel {
+  id                    String                  @id @default(cuid())
+  internalRef           String                  @unique
+  partnerParcelRef      String?
+  partnerId             String?
+  partner               Partner?                @relation(fields: [partnerId], references: [id])
+  senderName            String?
+  senderMobile          String?
+  recipientName         String
+  recipientMobile       String?
+  pickupPoint           String
+  deliveryAddress       String
+  city                  String
+  district              String
+  coverageAreaId        String?
+  coverageArea          CoverageArea?           @relation(fields: [coverageAreaId], references: [id])
+  assignedDriverId      String?
+  assignedDriver        Driver?                 @relation(fields: [assignedDriverId], references: [id])
+  vehicleId             String?
+  vehicle               Vehicle?                @relation(fields: [vehicleId], references: [id])
+  assignmentStatus      String?
+  status                String
+  weight                String?
+  pieces                String?
+  fragile               Boolean                 @default(false)
+  requiresSignature     Boolean                 @default(false)
+  proofOfDeliveryMethod String?
+  expectedDeliveryAt    DateTime?
+  assignedAt            DateTime?
+  assignedBy            String?
+  isDriverInArea        Boolean                 @default(false)
+  reassignmentRequired  Boolean                 @default(false)
+  notes                 String?
+  assignmentHistory     ParcelAssignmentHistory[]
+  statusHistory         ParcelStatusHistory[]
+  dispatchTasks         DispatchTask[]
+  deliveryAttempts      DeliveryAttempt[]
+  returnRequests        ReturnRequest[]
+  transportDocuments    TransportDocument[]
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+}
+
+model ParcelAssignmentHistory {
+  id             String   @id @default(cuid())
+  parcelId       String
+  parcel         Parcel   @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+  fromDriverName String?
+  toDriverName   String?
+  areaName       String?
+  action         String
+  userName       String?
+  note           String?
+  createdAt      DateTime @default(now())
+}
+
+model ParcelStatusHistory {
+  id        String   @id @default(cuid())
+  parcelId  String
+  parcel    Parcel   @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+  status    String
+  notes     String?
+  createdAt DateTime @default(now())
+}
+
+model DispatchTask {
+  id             String        @id @default(cuid())
+  taskType       String
+  orderId        String?
+  parcelId       String?
+  order          Order?        @relation(fields: [orderId], references: [id])
+  parcel         Parcel?       @relation(fields: [parcelId], references: [id])
+  driverId       String?
+  driver         Driver?       @relation(fields: [driverId], references: [id])
+  vehicleId      String?
+  vehicle        Vehicle?      @relation(fields: [vehicleId], references: [id])
+  coverageAreaId String?
+  coverageArea   CoverageArea? @relation(fields: [coverageAreaId], references: [id])
+  status         String
+  priority       String?
+  scheduledAt    DateTime?
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model DeliveryAttempt {
+  id        String   @id @default(cuid())
+  orderId   String?
+  parcelId  String?
+  driverId  String?
+  order     Order?   @relation(fields: [orderId], references: [id])
+  parcel    Parcel?  @relation(fields: [parcelId], references: [id])
+  driver    Driver?  @relation(fields: [driverId], references: [id])
+  reason    String
+  status    String
+  attemptAt DateTime @default(now())
+  notes     String?
+  proof     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ReturnRequest {
+  id        String   @id @default(cuid())
+  orderId   String?
+  parcelId  String?
+  driverId  String?
+  order     Order?   @relation(fields: [orderId], references: [id])
+  parcel    Parcel?  @relation(fields: [parcelId], references: [id])
+  driver    Driver?  @relation(fields: [driverId], references: [id])
+  reason    String
+  status    String
+  point     String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TransportDocument {
+  id                     String   @id @default(cuid())
+  internalDocumentNumber String   @unique
+  type                   String
+  linkedOrderId          String?
+  linkedParcelId         String?
+  partnerId              String?
+  order                  Order?   @relation(fields: [linkedOrderId], references: [id])
+  parcel                 Parcel?  @relation(fields: [linkedParcelId], references: [id])
+  partner                Partner? @relation(fields: [partnerId], references: [id])
+  senderName             String
+  recipientName          String
+  origin                 String
+  destination            String
+  vehicleId              String?
+  vehicle                Vehicle? @relation(fields: [vehicleId], references: [id])
+  driverId               String?
+  driver                 Driver?  @relation(fields: [driverId], references: [id])
+  cargoDescription       String?
+  pieces                 String?
+  weight                 String?
+  status                 String
+  bayanDocumentNumber    String?
+  issuingEntity          String?
+  notes                  String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
+model BayanIntegrationSetting {
+  id          String   @id @default(cuid())
+  mode        String   @default("not-configured")
+  status      String   @default("غير مربوط")
+  appIdMasked String?
+  appKeyMasked String?
+  lastCheckAt DateTime?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model BayanSyncLog {
+  id          String   @id @default(cuid())
+  action      String
+  status      String
+  description String?
+  metadataJson Json?
+  createdAt   DateTime @default(now())
+}
+
+model ActivityLog {
+  id           String   @id @default(cuid())
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id])
+  entityType   String
+  entityId     String?
+  action       String
+  description  String
+  metadataJson Json?
+  createdAt    DateTime @default(now())
+}
