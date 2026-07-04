@@ -195,7 +195,7 @@ type DriverFormDraft = {
   notes: string;
 };
 
-const numberFormatter = new Intl.NumberFormat("ar-SA");
+const numberFormatter = new Intl.NumberFormat("en-US");
 
 const operationsNav: NavItem[] = [
   { href: "/dashboard", label: "لوحة التحكم", icon: LayoutDashboard },
@@ -258,7 +258,7 @@ function ar(value: number) {
 }
 
 function percent(value: number) {
-  return `${ar(value)}٪`;
+  return `${ar(value)}%`;
 }
 
 function safe(value: string | number | undefined | null) {
@@ -2374,7 +2374,7 @@ export function OperationsApp() {
         )}
 
         <div className="toolbar" style={{ marginTop: 14, marginBottom: 0 }}>
-          <span className="muted">الصفحة ١ من ١ · الترقيم جاهز للتفعيل عند الربط بالخادم</span>
+          <span className="muted">الصفحة 1 من 1 · الترقيم جاهز للتفعيل عند الربط بالخادم</span>
           <span className="muted">فرز وتصفية من جهة الخادم عند الانتقال للإنتاج</span>
         </div>
       </section>
@@ -3531,7 +3531,7 @@ export function OperationsApp() {
         toast("الشريك مطلوب والمدينة مطلوبة");
         return;
       }
-      if (phone && !/^٠٥/.test(phone)) {
+      if (phone && !/^05/.test(phone)) {
         toast("رقم الجوال غير صحيح");
         return;
       }
@@ -3565,7 +3565,7 @@ export function OperationsApp() {
             <Input name="name" label="اسم الشريك" placeholder="مثال: متجر إلكتروني" />
             <Select name="type" label="نوع الشريك" options={partnerTypes} />
             <Input name="contact" label="جهة الاتصال" placeholder="مسؤول التشغيل" />
-            <Input name="phone" label="رقم الجوال" placeholder="٠٥٥١٢٣٤٥٦٧" />
+            <Input name="phone" label="رقم الجوال" placeholder="0551234567" />
             <Select name="city" label="المدينة" options={cities} />
             <Input name="operation" label="نوع التشغيل" placeholder="طلبات وطرود" />
           </div>
@@ -3595,7 +3595,7 @@ export function OperationsApp() {
         partner,
         type: String(data.get("type") ?? "طلب شركة"),
         customer: "عميل تجريبي",
-        phone: "٠٥٠٠٠٠٩٩٩٩",
+        phone: "0500009999",
         pickup,
         delivery,
         city: String(data.get("city") ?? "جدة"),
@@ -3652,12 +3652,12 @@ export function OperationsApp() {
         tracking: `تتبع-${ar(parcels.length + 4500)}`,
         partner,
         customer: "عميل تجريبي",
-        phone: "٠٥١١١١٩٩٩٩",
+        phone: "0511119999",
         pickup,
         delivery,
         city: String(data.get("city") ?? "جدة"),
         district: String(data.get("district") ?? "حي تجريبي"),
-        weight: String(data.get("weight") ?? "١ كجم"),
+        weight: String(data.get("weight") ?? "1 كجم"),
         pieces: String(data.get("pieces") ?? "قطعة واحدة"),
         fragile: String(data.get("fragile") ?? "لا"),
         signature: String(data.get("signature") ?? "نعم"),
@@ -3682,7 +3682,7 @@ export function OperationsApp() {
             <Input name="delivery" label="عنوان التسليم" placeholder="المدينة والحي والشارع" />
             <Select name="city" label="المدينة" options={cities} />
             <Input name="district" label="الحي" placeholder="حي تجريبي" />
-            <Input name="weight" label="الوزن" placeholder="٢ كجم" />
+            <Input name="weight" label="الوزن" placeholder="2 كجم" />
             <Select name="pieces" label="عدد القطع" options={["قطعة واحدة", "قطعتان", "ثلاث قطع"]} />
             <Select name="fragile" label="قابل للكسر" options={["لا", "نعم"]} />
             <Select name="signature" label="يحتاج توقيع" options={["نعم", "لا"]} />
@@ -4055,15 +4055,15 @@ function LoginPage({
           </div>
           <div className="login-metrics">
             <div className="login-metric">
-              <strong>١٢</strong>
+              <strong>12</strong>
               <span>مؤشر تشغيلي</span>
             </div>
             <div className="login-metric">
-              <strong>٢٨</strong>
+              <strong>28</strong>
               <span>مسار صفحة</span>
             </div>
             <div className="login-metric">
-              <strong>٦</strong>
+              <strong>6</strong>
               <span>أدوار تجريبية</span>
             </div>
           </div>
@@ -4074,7 +4074,7 @@ function LoginPage({
           <h2>تسجيل الدخول</h2>
           <p className="muted">اختر الدور المناسب للدخول إلى تجربة المرحلة الأولى.</p>
           <div className="form-stack">
-            <Input name="login" label="البريد الإلكتروني أو رقم الجوال" placeholder="٠٥٥١٢٣٤٥٦٧" />
+            <Input name="login" label="البريد الإلكتروني أو رقم الجوال" placeholder="0551234567" />
             <Input name="password" label="كلمة المرور" placeholder="••••••••" type="password" />
             <div>
               <label className="section-eyebrow">الدور التجريبي</label>
@@ -4176,7 +4176,7 @@ function Topbar({ title, roleLabel }: { title: string; roleLabel: string }) {
         <button className="icon-button" type="button" title="الإشعارات">
           <Bell size={18} />
         </button>
-        <span className="badge amber desktop-only">٣ تنبيهات</span>
+        <span className="badge amber desktop-only">3 تنبيهات</span>
       </div>
     </header>
   );
@@ -4440,7 +4440,7 @@ function DriverExperience({
             </div>
             <div>
               <dt>جوال العميل</dt>
-              <dd>٠٥٠٠٠٠٠٠٠٠</dd>
+              <dd>0500000000</dd>
             </div>
             <div>
               <dt>إثبات التسليم</dt>
