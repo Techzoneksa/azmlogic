@@ -115,6 +115,11 @@ type NavItem = {
   icon: LucideIcon;
 };
 
+type NavGroup = {
+  label: string;
+  items: NavItem[];
+};
+
 type AssignmentMeta = {
   coverageAreaId: string;
   coverageAreaName: string;
@@ -209,6 +214,27 @@ const operationsNav: NavItem[] = [
   { href: "/reports", label: "التقارير", icon: BarChart3 },
   { href: "/activity-log", label: "سجل الأنشطة", icon: Activity },
   { href: "/settings", label: "الإعدادات", icon: Settings }
+];
+
+const navByHref = (href: string) => operationsNav.find((item) => item.href === href)!;
+
+const operationsNavGroups: NavGroup[] = [
+  {
+    label: "التشغيل",
+    items: ["/dashboard", "/partners", "/orders", "/parcels", "/dispatch"].map(navByHref)
+  },
+  {
+    label: "الموارد الميدانية",
+    items: ["/drivers", "/coverage-areas", "/vehicles", "/pickup-points"].map(navByHref)
+  },
+  {
+    label: "المتابعة والامتثال",
+    items: ["/delivery-attempts", "/returns", "/transport-documents", "/bayan-readiness"].map(navByHref)
+  },
+  {
+    label: "النظام",
+    items: ["/reports", "/activity-log", "/settings"].map(navByHref)
+  }
 ];
 
 const operationsBottomNav: NavItem[] = [
@@ -4095,15 +4121,33 @@ function Sidebar({
           <span>مركز العمليات اللوجستية</span>
         </div>
       </div>
-      <nav className="nav-list" aria-label="التنقل الرئيسي">
-        {operationsNav.map((item) => (
-          <Link className={`nav-link ${isActive(pathname, item.href) ? "is-active" : ""}`} href={item.href} key={item.href}>
-            <item.icon size={19} />
-            {item.label}
-          </Link>
+
+      <nav className="sidebar-nav-scroll" aria-label="التنقل الرئيسي">
+        {operationsNavGroups.map((group) => (
+          <div className="nav-group" key={group.label}>
+            <p className="nav-group-label">{group.label}</p>
+            <div className="nav-list">
+              {group.items.map((item) => (
+                <Link className={`nav-link ${isActive(pathname, item.href) ? "is-active" : ""}`} href={item.href} key={item.href}>
+                  <span className="nav-icon">
+                    <item.icon size={18} />
+                  </span>
+                  <span>{item.label}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
         ))}
       </nav>
+
       <div className="sidebar-footer">
+        <div className="account-card">
+          <div className="account-avatar">م</div>
+          <div className="account-copy">
+            <span>المدير العام</span>
+            <strong>متصل</strong>
+          </div>
+        </div>
         <select className="role-pill" value={role} onChange={(event) => setRole(event.target.value as RoleKey)} aria-label="الدور التجريبي">
           {roles.map((item) => (
             <option key={item.key} value={item.key}>
@@ -4111,8 +4155,8 @@ function Sidebar({
             </option>
           ))}
         </select>
-        <Link className="nav-link" href="/login">
-          <LogOut size={18} />
+        <Link className="logout-link" href="/login">
+          <LogOut size={17} />
           تسجيل الخروج
         </Link>
       </div>
