@@ -667,6 +667,10 @@ a {
   min-width: 1480px;
 }
 
+.operational-table {
+  min-width: 1540px;
+}
+
 .data-table th,
 .data-table td {
   text-align: right;

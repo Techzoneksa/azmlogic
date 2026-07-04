@@ -353,6 +353,8 @@ export function OperationsApp() {
   const [districtFilter, setDistrictFilter] = useState("الكل");
   const [driverFilter, setDriverFilter] = useState("الكل");
   const [assignmentFilter, setAssignmentFilter] = useState("الكل");
+  const [taskStatusFilter, setTaskStatusFilter] = useState("الكل");
+  const [taskKindFilter, setTaskKindFilter] = useState("الكل");
   const [driverCityFilter, setDriverCityFilter] = useState("الكل");
   const [driverAreaFilter, setDriverAreaFilter] = useState("الكل");
   const [driverIdentityFilter, setDriverIdentityFilter] = useState("الكل");
@@ -2302,6 +2304,8 @@ export function OperationsApp() {
     const districtOptions = ["الكل", ...Array.from(new Set(rows.map((row) => row.district)))];
     const driverOptions = ["الكل", "غير مسند", ...drivers.map((driver) => driver.name)];
     const assignmentOptions = ["الكل", ...Array.from(new Set(rows.map((row) => row.assignmentStatus)))];
+    const taskStatusOptions = ["الكل", ...Array.from(new Set(rows.map((row) => row.status)))];
+    const taskKindOptions = ["الكل", ...Array.from(new Set(rows.map((row) => row.kind === "order" ? row.taskType : row.weight ?? "طرد")))];
 
     const tabMatches = (row: OperationalRow) => {
       if (effectiveStatus === "الكل") return true;
@@ -2325,7 +2329,10 @@ export function OperationsApp() {
       const driverName = row.fields.find((item) => item.label === "المندوب المسند")?.value ?? "غير مسند";
       const driverMatch = driverFilter === "الكل" || driverName === driverFilter || (driverFilter === "غير مسند" && !row.assignedDriverId);
       const assignmentMatch = assignmentFilter === "الكل" || row.assignmentStatus === assignmentFilter;
-      return queryMatch && partnerMatch && cityMatch && areaMatch && districtMatch && driverMatch && assignmentMatch && tabMatches(row);
+      const taskStatusMatch = taskStatusFilter === "الكل" || row.status === taskStatusFilter;
+      const taskKindValue = row.kind === "order" ? row.taskType : row.weight ?? "طرد";
+      const taskKindMatch = taskKindFilter === "الكل" || taskKindValue === taskKindFilter;
+      return queryMatch && partnerMatch && cityMatch && areaMatch && districtMatch && driverMatch && assignmentMatch && taskStatusMatch && taskKindMatch && tabMatches(row);
     });
 
     return (
@@ -2355,6 +2362,8 @@ export function OperationsApp() {
             <FilterSelect label="الحي" value={districtFilter} options={districtOptions} onChange={setDistrictFilter} />
             <FilterSelect label="المندوب" value={driverFilter} options={driverOptions} onChange={setDriverFilter} />
             <FilterSelect label="الإسناد" value={assignmentFilter} options={assignmentOptions} onChange={setAssignmentFilter} />
+            <FilterSelect label="حالة المهمة" value={taskStatusFilter} options={taskStatusOptions} onChange={setTaskStatusFilter} />
+            <FilterSelect label={rows[0]?.kind === "order" ? "نوع الطلب" : "الوزن"} value={taskKindFilter} options={taskKindOptions} onChange={setTaskKindFilter} />
           </div>
           <div className="toolbar-group">
             {extraAction ? (
@@ -2370,6 +2379,8 @@ export function OperationsApp() {
               setDistrictFilter("الكل");
               setDriverFilter("الكل");
               setAssignmentFilter("الكل");
+              setTaskStatusFilter("الكل");
+              setTaskKindFilter("الكل");
               setStatusFilter("الكل");
             }}>
               <RefreshCw size={18} />
@@ -2398,37 +2409,49 @@ export function OperationsApp() {
         {filtered.length ? (
           <>
             <div className="data-table-wrap" style={{ marginTop: 14 }}>
-              <table className="data-table">
+              <table className="data-table operational-table">
                 <thead>
                   <tr>
                     <th>المرجع</th>
-                    <th>الشريك / النوع</th>
-                    <th>المدينة والحي</th>
-                    <th>منطقة التغطية</th>
-                    <th>المندوب</th>
+                    <th>{rows[0]?.kind === "order" ? "رقم طلب الشريك" : "رقم مرجع الشريك"}</th>
+                    <th>الشريك</th>
+                    <th>{rows[0]?.kind === "order" ? "نوع الطلب" : "الوزن والقطع"}</th>
+                    <th>المدينة</th>
+                    <th>الحي</th>
+                    <th>المنطقة</th>
+                    <th>المندوب المسند</th>
                     <th>المركبة</th>
                     <th>حالة الإسناد</th>
                     <th>حالة المهمة</th>
+                    <th>{rows[0]?.kind === "order" ? "وقت التسليم المتوقع" : "بيانات الحمولة"}</th>
+                    <th>توافق المندوب مع المنطقة</th>
                     <th>الإجراء</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((row) => (
                     <tr key={row.id}>
-                      <td>{row.id}</td>
+                      <td><Link href={row.href}>{row.id}</Link></td>
+                      <td>{row.fields[0]?.value ?? row.id}</td>
                       <td>
                         <strong>{row.partner}</strong>
                         <div className="muted">{row.taskType}</div>
                       </td>
-                      <td>{row.city} · {row.district}</td>
-                      <td>{areaName(row.coverageAreaId)}</td>
+                      <td>{row.kind === "order" ? row.taskType : `${row.weight ?? "غير محدد"} · ${row.pieces ?? "غير محدد"}`}</td>
+                      <td>{row.city}</td>
+                      <td>{row.district}</td>
+                      <td><Link href={`/coverage-areas/${routeId(row.coverageAreaId)}`}>{areaName(row.coverageAreaId)}</Link></td>
                       <td>{row.fields.find((item) => item.label === "المندوب المسند")?.value ?? "غير مسند"}</td>
                       <td>{row.vehicleLabel}</td>
                       <td>
                         <Badge>{row.assignmentStatus}</Badge>
-                        <div className="muted">{row.relationship}</div>
                       </td>
                       <td><Badge>{row.status}</Badge></td>
+                      <td>{row.kind === "order" ? row.due : `${row.weight ?? "غير محدد"} · ${row.pieces ?? "غير محدد"}`}</td>
+                      <td>
+                        <Badge>{row.relationship}</Badge>
+                        {row.relationship.includes("خارج") ? <div className="muted">المندوب المسند لا يغطي هذه المنطقة بشكل أساسي.</div> : null}
+                      </td>
                       <td>
                         <div className="row-actions">
                           <button className="ghost-button" type="button" onClick={() => assignTask(row.id, drivers[0]?.name ?? "غير محدد")}>
