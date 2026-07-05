@@ -21,7 +21,7 @@ export async function listTransportDocuments() {
   try {
     return serviceOk(await prisma.transportDocument.findMany({ orderBy: { createdAt: "desc" }, include: { partner: true, driver: true, vehicle: true } }));
   } catch {
-    return serviceError(initialDocuments);
+    return serviceFallback(initialDocuments);
   }
 }
 

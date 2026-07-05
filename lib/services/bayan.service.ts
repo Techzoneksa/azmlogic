@@ -1,6 +1,6 @@
 import { getPrismaClient } from "@/lib/db/prisma";
 import { bayanChecklistItems } from "@/lib/demo-data";
-import { serviceError, serviceFallback, serviceOk } from "./service-response";
+import { serviceFallback, serviceOk } from "./service-response";
 
 const demoBayanReadiness = {
   mode: "not-configured",
@@ -19,6 +19,6 @@ export async function getBayanReadinessSettings() {
     const setting = await prisma.bayanIntegrationSetting.findFirst({ orderBy: { createdAt: "desc" } });
     return serviceOk(setting ?? demoBayanReadiness);
   } catch {
-    return serviceError(demoBayanReadiness);
+    return serviceFallback(demoBayanReadiness);
   }
 }

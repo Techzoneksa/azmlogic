@@ -151,3 +151,77 @@ npx prisma generate
 ```
 
 إذا لم يتم ضبط `DATABASE_URL` في بيئة الفحص، استخدم قيمة PostgreSQL مؤقتة للتحقق من schema فقط.
+
+## Phase 2.1 — تفعيل قاعدة PostgreSQL
+
+هذه الخطوات مخصصة لمسار AZM فقط:
+
+```text
+/home/u633767125/domains/azmapp.promksa.com
+```
+
+لا تستخدم هذه الأوامر داخل `albaariz.com`.
+
+### قبل التفعيل
+
+- تأكد أن آخر commit موجود على GitHub.
+- تأكد أن التطبيق يعمل في demo mode إذا لم تضبط `DATABASE_URL`.
+- لا تضف أسرار قاعدة البيانات إلى Git.
+- لا يوجد ربط فعلي مع بيان في هذه المرحلة.
+
+### أوامر التحديث على SSH
+
+```bash
+cd /home/u633767125/domains/azmapp.promksa.com/public_html/.builds/last-source
+git pull origin main
+
+rsync -av \
+  --exclude=".git" \
+  --exclude="node_modules" \
+  --exclude=".next" \
+  --exclude="tmp" \
+  --exclude="stdout.log" \
+  --exclude="stderr.log" \
+  ./ /home/u633767125/domains/azmapp.promksa.com/nodejs/
+
+cd /home/u633767125/domains/azmapp.promksa.com/nodejs
+npm install
+npx prisma generate
+```
+
+إذا تم ضبط `DATABASE_URL` و`JWT_SECRET`:
+
+```bash
+npx prisma db push
+npm run db:seed
+```
+
+إذا لم يتم ضبط `DATABASE_URL`:
+
+```bash
+echo "DATABASE_URL غير مضبوط، سيتم تشغيل demo mode"
+```
+
+ثم:
+
+```bash
+npm run build
+touch /home/u633767125/domains/azmapp.promksa.com/nodejs/tmp/restart.txt
+```
+
+### التحقق
+
+```bash
+curl -I https://azmapp.promksa.com
+curl -I https://azmapp.promksa.com/drivers
+curl -I https://azmapp.promksa.com/driver
+curl -I https://azmapp.promksa.com/orders
+curl -I https://azmapp.promksa.com/parcels
+curl -I https://azmapp.promksa.com/bayan-readiness
+curl -s https://azmapp.promksa.com/api/foundation/status
+```
+
+افتح `/settings` وتأكد من ظهور:
+
+- `وضع البيانات: تجريبي` عند غياب قاعدة البيانات.
+- `وضع البيانات: قاعدة بيانات` بعد ضبط `NEXT_PUBLIC_DATA_MODE=database` و`DATABASE_URL`.

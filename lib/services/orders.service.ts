@@ -33,7 +33,7 @@ export async function listOrders() {
   try {
     return serviceOk(await prisma.order.findMany({ orderBy: { createdAt: "desc" }, include: { partner: true, assignedDriver: true, vehicle: true, coverageArea: true } }));
   } catch {
-    return serviceError(initialOrders);
+    return serviceFallback(initialOrders);
   }
 }
 
@@ -44,7 +44,7 @@ export async function getOrderById(id: string) {
   try {
     return serviceOk(await prisma.order.findFirst({ where: { OR: [{ id }, { internalRef: id }] }, include: { assignmentHistory: true, statusHistory: true, partner: true, assignedDriver: true, vehicle: true, coverageArea: true } }));
   } catch {
-    return serviceError(null);
+    return serviceFallback(initialOrders.find((order) => order.id === id) ?? null);
   }
 }
 

@@ -18,7 +18,7 @@ export async function listDrivers() {
   try {
     return serviceOk(await prisma.driver.findMany({ orderBy: { createdAt: "desc" }, include: { primaryArea: true, documents: true } }));
   } catch {
-    return serviceError(initialDrivers);
+    return serviceFallback(initialDrivers);
   }
 }
 
@@ -29,7 +29,7 @@ export async function getDriverById(id: string) {
   try {
     return serviceOk(await prisma.driver.findFirst({ where: { OR: [{ id }, { externalId: id }] }, include: { primaryArea: true, documents: true, agreements: true } }));
   } catch {
-    return serviceError(null);
+    return serviceFallback(initialDrivers.find((driver) => driver.id === id) ?? null);
   }
 }
 

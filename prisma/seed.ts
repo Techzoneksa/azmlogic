@@ -92,8 +92,13 @@ async function resetDatabase() {
 
 async function seedRoles() {
   for (const permission of permissions) {
-    await prisma.permission.create({
-      data: {
+    await prisma.permission.upsert({
+      where: { key: permission },
+      update: {
+        name: permission,
+        description: "صلاحية تأسيسية للمرحلة الثانية"
+      },
+      create: {
         key: permission,
         name: permission,
         description: "صلاحية تأسيسية للمرحلة الثانية"
@@ -102,8 +107,13 @@ async function seedRoles() {
   }
 
   for (const role of roles) {
-    const createdRole = await prisma.role.create({
-      data: {
+    const createdRole = await prisma.role.upsert({
+      where: { key: role.key },
+      update: {
+        name: role.label,
+        description: role.description
+      },
+      create: {
         key: role.key,
         name: role.label,
         description: role.description
@@ -113,8 +123,15 @@ async function seedRoles() {
     const rolePermissions = rolePermissionMap[role.key] ?? [];
     for (const permissionKey of rolePermissions) {
       const permission = await prisma.permission.findUniqueOrThrow({ where: { key: permissionKey } });
-      await prisma.rolePermission.create({
-        data: {
+      await prisma.rolePermission.upsert({
+        where: {
+          roleId_permissionId: {
+            roleId: createdRole.id,
+            permissionId: permission.id
+          }
+        },
+        update: {},
+        create: {
           roleId: createdRole.id,
           permissionId: permission.id
         }
@@ -132,8 +149,20 @@ async function seedCoreData() {
   const parcelIds = new Map<string, string>();
 
   for (const partner of initialPartners) {
-    const created = await prisma.partner.create({
-      data: {
+    const created = await prisma.partner.upsert({
+      where: { externalId: partner.id },
+      update: {
+        name: partner.name,
+        type: partner.type,
+        contactName: partner.contact,
+        mobile: partner.phone,
+        email: partner.email,
+        city: partner.city,
+        status: partner.status,
+        contractType: partner.operation,
+        notes: partner.notes
+      },
+      create: {
         externalId: partner.id,
         name: partner.name,
         type: partner.type,
@@ -143,93 +172,115 @@ async function seedCoreData() {
         city: partner.city,
         status: partner.status,
         contractType: partner.operation,
-        notes: partner.notes,
-        contacts: {
-          create: {
-            name: partner.contact,
-            mobile: partner.phone,
-            email: partner.email,
-            role: "مسؤول التشغيل"
-          }
-        }
+        notes: partner.notes
+      }
+    });
+    await prisma.partnerContact.deleteMany({ where: { partnerId: created.id } });
+    await prisma.partnerContact.create({
+      data: {
+        partnerId: created.id,
+        name: partner.contact,
+        mobile: partner.phone,
+        email: partner.email,
+        role: "مسؤول التشغيل"
       }
     });
     partnerIds.set(partner.name, created.id);
   }
 
   for (const area of initialCoverageAreas) {
-    const created = await prisma.coverageArea.create({
-      data: {
+    const created = await prisma.coverageArea.upsert({
+      where: { externalId: area.id },
+      update: {
+        name: area.name,
+        city: area.city,
+        status: area.status,
+        coverageType: area.areaType,
+        capacity: area.capacity,
+        notes: area.notes
+      },
+      create: {
         externalId: area.id,
         name: area.name,
         city: area.city,
         status: area.status,
         coverageType: area.areaType,
         capacity: area.capacity,
-        notes: area.notes,
-        neighborhoods: {
-          create: area.neighborhoods.map((name) => ({ name }))
-        },
-        pickupPoints: {
-          create: area.pickupPointIds.map((id) => ({
-            name: id,
-            city: area.city,
-            status: "نشط"
-          }))
-        }
+        notes: area.notes
       }
+    });
+    await prisma.areaNeighborhood.deleteMany({ where: { areaId: created.id } });
+    await prisma.areaPickupPoint.deleteMany({ where: { areaId: created.id } });
+    await prisma.areaNeighborhood.createMany({
+      data: area.neighborhoods.map((name) => ({ areaId: created.id, name }))
+    });
+    await prisma.areaPickupPoint.createMany({
+      data: area.pickupPointIds.map((id) => ({
+        areaId: created.id,
+        name: id,
+        city: area.city,
+        status: "نشط"
+      }))
     });
     areaIds.set(area.id, created.id);
     areaIds.set(area.name, created.id);
   }
 
   for (const driver of initialDrivers) {
-    const created = await prisma.driver.create({
-      data: {
+    const driverData = {
+      fullName: driver.fullName ?? driver.name,
+      mobile: driver.mobile ?? driver.phone,
+      identityNumber: driver.identityNumber ?? driver.nationalId,
+      identityType: driver.identityType,
+      nationality: driver.nationality,
+      age: driver.age,
+      email: driver.email,
+      city: driver.city,
+      address: driver.address,
+      emergencyContactName: driver.emergencyContactName ?? driver.emergencyContact,
+      emergencyContactMobile: driver.emergencyContactMobile,
+      licenseNumber: driver.licenseNumber,
+      licenseType: driver.licenseType,
+      licenseStatus: driver.licenseStatus,
+      identityStatus: driver.identityStatus,
+      agreementType: driver.agreementType ?? driver.type,
+      baseSalary: driver.baseSalary,
+      commissionPerOrder: driver.commissionPerOrder,
+      commissionPerParcel: driver.commissionPerParcel,
+      dailyMinimum: driver.dailyMinimum,
+      contractStatus: driver.contractStatus,
+      workType: driver.workType,
+      workHours: driver.workHours,
+      workDays: driver.workDays,
+      offDays: driver.offDays,
+      primaryAreaId: driver.primaryAreaId ? areaIds.get(driver.primaryAreaId) : undefined,
+      driverStatus: driver.driverStatus ?? driver.status,
+      readinessScore: driver.readinessScore ?? driver.readinessRate,
+      notes: driver.notes
+    };
+    const created = await prisma.driver.upsert({
+      where: { externalId: driver.id },
+      update: driverData,
+      create: {
         externalId: driver.id,
-        fullName: driver.fullName ?? driver.name,
-        mobile: driver.mobile ?? driver.phone,
-        identityNumber: driver.identityNumber ?? driver.nationalId,
-        identityType: driver.identityType,
-        nationality: driver.nationality,
-        age: driver.age,
-        email: driver.email,
-        city: driver.city,
-        address: driver.address,
-        emergencyContactName: driver.emergencyContactName ?? driver.emergencyContact,
-        emergencyContactMobile: driver.emergencyContactMobile,
-        licenseNumber: driver.licenseNumber,
-        licenseType: driver.licenseType,
-        licenseStatus: driver.licenseStatus,
-        identityStatus: driver.identityStatus,
-        agreementType: driver.agreementType ?? driver.type,
-        baseSalary: driver.baseSalary,
-        commissionPerOrder: driver.commissionPerOrder,
-        commissionPerParcel: driver.commissionPerParcel,
-        dailyMinimum: driver.dailyMinimum,
-        contractStatus: driver.contractStatus,
-        workType: driver.workType,
-        workHours: driver.workHours,
-        workDays: driver.workDays,
-        offDays: driver.offDays,
-        primaryAreaId: driver.primaryAreaId ? areaIds.get(driver.primaryAreaId) : undefined,
-        driverStatus: driver.driverStatus ?? driver.status,
-        readinessScore: driver.readinessScore ?? driver.readinessRate,
-        notes: driver.notes,
-        documents: {
-          create: [
-            { type: "الهوية", status: driver.identityStatus ?? "قيد المراجعة", fileUrl: driver.identityFile, notes: "ملف تجريبي" },
-            { type: "الرخصة", status: driver.licenseStatus ?? "قيد المراجعة", fileUrl: driver.licenseFile, notes: "ملف تجريبي" },
-            { type: "التأمين", status: driver.documentStatus ?? "قيد المراجعة", fileUrl: driver.insuranceFile, notes: "ملف تجريبي" }
-          ]
-        },
-        agreements: {
-          create: {
-            type: driver.agreementType ?? driver.type,
-            status: driver.contractStatus ?? "نشط",
-            notes: "اتفاق تشغيلي تجريبي وليس نظام رواتب"
-          }
-        }
+        ...driverData
+      }
+    });
+    await prisma.driverDocument.deleteMany({ where: { driverId: created.id } });
+    await prisma.driverAgreement.deleteMany({ where: { driverId: created.id } });
+    await prisma.driverDocument.createMany({
+      data: [
+        { driverId: created.id, type: "الهوية", status: driver.identityStatus ?? "قيد المراجعة", fileUrl: driver.identityFile, notes: "ملف تجريبي" },
+        { driverId: created.id, type: "الرخصة", status: driver.licenseStatus ?? "قيد المراجعة", fileUrl: driver.licenseFile, notes: "ملف تجريبي" },
+        { driverId: created.id, type: "التأمين", status: driver.documentStatus ?? "قيد المراجعة", fileUrl: driver.insuranceFile, notes: "ملف تجريبي" }
+      ]
+    });
+    await prisma.driverAgreement.create({
+      data: {
+        driverId: created.id,
+        type: driver.agreementType ?? driver.type,
+        status: driver.contractStatus ?? "نشط",
+        notes: "اتفاق تشغيلي تجريبي وليس نظام رواتب"
       }
     });
     driverIds.set(driver.id, created.id);
@@ -239,22 +290,27 @@ async function seedCoreData() {
   for (const vehicle of initialVehicles) {
     const plate = splitPlate(vehicle.plate);
     const linkedDriverId = vehicle.driver ? driverIds.get(vehicle.driver) : undefined;
-    const created = await prisma.vehicle.create({
-      data: {
+    const vehicleData = {
+      plateNumber: plate.plateNumber,
+      plateRightLetter: plate.plateRightLetter,
+      plateMiddleLetter: plate.plateMiddleLetter,
+      plateLeftLetter: plate.plateLeftLetter,
+      vehicleType: vehicle.type,
+      model: vehicle.model,
+      year: parseYear(vehicle.year),
+      status: vehicle.status,
+      insuranceStatus: vehicle.insurance,
+      registrationStatus: vehicle.registration,
+      inspectionStatus: vehicle.inspection,
+      linkedDriverId,
+      notes: vehicle.notes
+    };
+    const created = await prisma.vehicle.upsert({
+      where: { externalId: vehicle.id },
+      update: vehicleData,
+      create: {
         externalId: vehicle.id,
-        plateNumber: plate.plateNumber,
-        plateRightLetter: plate.plateRightLetter,
-        plateMiddleLetter: plate.plateMiddleLetter,
-        plateLeftLetter: plate.plateLeftLetter,
-        vehicleType: vehicle.type,
-        model: vehicle.model,
-        year: parseYear(vehicle.year),
-        status: vehicle.status,
-        insuranceStatus: vehicle.insurance,
-        registrationStatus: vehicle.registration,
-        inspectionStatus: vehicle.inspection,
-        linkedDriverId,
-        notes: vehicle.notes
+        ...vehicleData
       }
     });
     vehicleIds.set(vehicle.id, created.id);
@@ -265,8 +321,20 @@ async function seedCoreData() {
     const driverId = driverIds.get(assignment.driverId);
     const areaId = areaIds.get(assignment.areaId);
     if (!driverId || !areaId) continue;
-    await prisma.driverAreaAssignment.create({
-      data: {
+    await prisma.driverAreaAssignment.upsert({
+      where: {
+        driverId_areaId: {
+          driverId,
+          areaId
+        }
+      },
+      update: {
+        coverageType: assignment.coverageType,
+        timeWindow: assignment.timeWindow,
+        priority: assignment.priority,
+        notes: assignment.notes
+      },
+      create: {
         driverId,
         areaId,
         coverageType: assignment.coverageType,
@@ -278,99 +346,129 @@ async function seedCoreData() {
   }
 
   for (const order of initialOrders) {
-    const created = await prisma.order.create({
-      data: {
+    const orderData = {
+      partnerOrderRef: order.partnerRef,
+      partnerId: partnerIds.get(order.partner),
+      orderType: order.type,
+      customerName: order.customer,
+      customerMobile: order.phone,
+      pickupPoint: order.pickup,
+      deliveryAddress: order.delivery,
+      city: order.city,
+      district: order.district,
+      coverageAreaId: order.coverageAreaId ? areaIds.get(order.coverageAreaId) : undefined,
+      assignedDriverId: order.assignedDriverId ? driverIds.get(order.assignedDriverId) : driverIds.get(order.driver),
+      vehicleId: order.vehicleId ? vehicleIds.get(order.vehicleId) : vehicleIds.get(order.vehicle),
+      assignmentStatus: order.assignmentStatus,
+      status: order.status,
+      priority: order.priority,
+      assignedBy: order.assignedBy,
+      isDriverInArea: Boolean(order.isDriverInArea),
+      reassignmentRequired: Boolean(order.reassignmentRequired),
+      notes: order.notes
+    };
+    const created = await prisma.order.upsert({
+      where: { internalRef: order.id },
+      update: orderData,
+      create: {
         internalRef: order.id,
-        partnerOrderRef: order.partnerRef,
-        partnerId: partnerIds.get(order.partner),
-        orderType: order.type,
-        customerName: order.customer,
-        customerMobile: order.phone,
-        pickupPoint: order.pickup,
-        deliveryAddress: order.delivery,
-        city: order.city,
-        district: order.district,
-        coverageAreaId: order.coverageAreaId ? areaIds.get(order.coverageAreaId) : undefined,
-        assignedDriverId: order.assignedDriverId ? driverIds.get(order.assignedDriverId) : driverIds.get(order.driver),
-        vehicleId: order.vehicleId ? vehicleIds.get(order.vehicleId) : vehicleIds.get(order.vehicle),
-        assignmentStatus: order.assignmentStatus,
+        ...orderData
+      }
+    });
+    await prisma.orderAssignmentHistory.deleteMany({ where: { orderId: created.id } });
+    await prisma.orderStatusHistory.deleteMany({ where: { orderId: created.id } });
+    await prisma.orderAssignmentHistory.createMany({
+      data: (order.assignmentHistory ?? []).map((item) => ({
+        orderId: created.id,
+        fromDriverName: item.fromDriver,
+        toDriverName: item.toDriver,
+        areaName: item.area,
+        action: item.action,
+        userName: item.user,
+        note: item.note
+      }))
+    });
+    await prisma.orderStatusHistory.create({
+      data: {
+        orderId: created.id,
         status: order.status,
-        priority: order.priority,
-        assignedBy: order.assignedBy,
-        isDriverInArea: Boolean(order.isDriverInArea),
-        reassignmentRequired: Boolean(order.reassignmentRequired),
-        notes: order.notes,
-        assignmentHistory: {
-          create: (order.assignmentHistory ?? []).map((item) => ({
-            fromDriverName: item.fromDriver,
-            toDriverName: item.toDriver,
-            areaName: item.area,
-            action: item.action,
-            userName: item.user,
-            note: item.note
-          }))
-        },
-        statusHistory: {
-          create: {
-            status: order.status,
-            notes: "حالة أولية من بيانات العرض"
-          }
-        }
+        notes: "حالة أولية من بيانات العرض"
       }
     });
     orderIds.set(order.id, created.id);
   }
 
   for (const parcel of initialParcels) {
-    const created = await prisma.parcel.create({
-      data: {
+    const parcelData = {
+      partnerParcelRef: parcel.tracking,
+      partnerId: partnerIds.get(parcel.partner),
+      recipientName: parcel.customer,
+      recipientMobile: parcel.phone,
+      pickupPoint: parcel.pickup,
+      deliveryAddress: parcel.delivery,
+      city: parcel.city,
+      district: parcel.district,
+      coverageAreaId: parcel.coverageAreaId ? areaIds.get(parcel.coverageAreaId) : undefined,
+      assignedDriverId: parcel.assignedDriverId ? driverIds.get(parcel.assignedDriverId) : driverIds.get(parcel.driver),
+      vehicleId: parcel.vehicleId ? vehicleIds.get(parcel.vehicleId) : vehicleIds.get(parcel.vehicle),
+      assignmentStatus: parcel.assignmentStatus,
+      status: parcel.status,
+      weight: parcel.weight,
+      pieces: parcel.pieces,
+      fragile: parcel.fragile === "نعم",
+      requiresSignature: parcel.signature === "نعم",
+      proofOfDeliveryMethod: parcel.proof,
+      assignedBy: parcel.assignedBy,
+      isDriverInArea: Boolean(parcel.isDriverInArea),
+      reassignmentRequired: Boolean(parcel.reassignmentRequired),
+      notes: parcel.notes
+    };
+    const created = await prisma.parcel.upsert({
+      where: { internalRef: parcel.id },
+      update: parcelData,
+      create: {
         internalRef: parcel.id,
-        partnerParcelRef: parcel.tracking,
-        partnerId: partnerIds.get(parcel.partner),
-        recipientName: parcel.customer,
-        recipientMobile: parcel.phone,
-        pickupPoint: parcel.pickup,
-        deliveryAddress: parcel.delivery,
-        city: parcel.city,
-        district: parcel.district,
-        coverageAreaId: parcel.coverageAreaId ? areaIds.get(parcel.coverageAreaId) : undefined,
-        assignedDriverId: parcel.assignedDriverId ? driverIds.get(parcel.assignedDriverId) : driverIds.get(parcel.driver),
-        vehicleId: parcel.vehicleId ? vehicleIds.get(parcel.vehicleId) : vehicleIds.get(parcel.vehicle),
-        assignmentStatus: parcel.assignmentStatus,
+        ...parcelData
+      }
+    });
+    await prisma.parcelAssignmentHistory.deleteMany({ where: { parcelId: created.id } });
+    await prisma.parcelStatusHistory.deleteMany({ where: { parcelId: created.id } });
+    await prisma.parcelAssignmentHistory.createMany({
+      data: (parcel.assignmentHistory ?? []).map((item) => ({
+        parcelId: created.id,
+        fromDriverName: item.fromDriver,
+        toDriverName: item.toDriver,
+        areaName: item.area,
+        action: item.action,
+        userName: item.user,
+        note: item.note
+      }))
+    });
+    await prisma.parcelStatusHistory.create({
+      data: {
+        parcelId: created.id,
         status: parcel.status,
-        weight: parcel.weight,
-        pieces: parcel.pieces,
-        fragile: parcel.fragile === "نعم",
-        requiresSignature: parcel.signature === "نعم",
-        proofOfDeliveryMethod: parcel.proof,
-        assignedBy: parcel.assignedBy,
-        isDriverInArea: Boolean(parcel.isDriverInArea),
-        reassignmentRequired: Boolean(parcel.reassignmentRequired),
-        notes: parcel.notes,
-        assignmentHistory: {
-          create: (parcel.assignmentHistory ?? []).map((item) => ({
-            fromDriverName: item.fromDriver,
-            toDriverName: item.toDriver,
-            areaName: item.area,
-            action: item.action,
-            userName: item.user,
-            note: item.note
-          }))
-        },
-        statusHistory: {
-          create: {
-            status: parcel.status,
-            notes: "حالة أولية من بيانات العرض"
-          }
-        }
+        notes: "حالة أولية من بيانات العرض"
       }
     });
     parcelIds.set(parcel.id, created.id);
   }
 
   for (const order of initialOrders) {
-    await prisma.dispatchTask.create({
-      data: {
+    await prisma.dispatchTask.upsert({
+      where: { externalId: `dispatch-${order.id}` },
+      update: {
+        taskType: "order",
+        orderId: orderIds.get(order.id),
+        driverId: order.assignedDriverId ? driverIds.get(order.assignedDriverId) : driverIds.get(order.driver),
+        vehicleId: order.vehicleId ? vehicleIds.get(order.vehicleId) : vehicleIds.get(order.vehicle),
+        coverageAreaId: order.coverageAreaId ? areaIds.get(order.coverageAreaId) : undefined,
+        status: order.status,
+        priority: order.priority,
+        notes: order.notes
+      },
+      create: {
+        externalId: `dispatch-${order.id}`,
         taskType: "order",
         orderId: orderIds.get(order.id),
         driverId: order.assignedDriverId ? driverIds.get(order.assignedDriverId) : driverIds.get(order.driver),
@@ -384,8 +482,19 @@ async function seedCoreData() {
   }
 
   for (const parcel of initialParcels) {
-    await prisma.dispatchTask.create({
-      data: {
+    await prisma.dispatchTask.upsert({
+      where: { externalId: `dispatch-${parcel.id}` },
+      update: {
+        taskType: "parcel",
+        parcelId: parcelIds.get(parcel.id),
+        driverId: parcel.assignedDriverId ? driverIds.get(parcel.assignedDriverId) : driverIds.get(parcel.driver),
+        vehicleId: parcel.vehicleId ? vehicleIds.get(parcel.vehicleId) : vehicleIds.get(parcel.vehicle),
+        coverageAreaId: parcel.coverageAreaId ? areaIds.get(parcel.coverageAreaId) : undefined,
+        status: parcel.status,
+        notes: parcel.notes
+      },
+      create: {
+        externalId: `dispatch-${parcel.id}`,
         taskType: "parcel",
         parcelId: parcelIds.get(parcel.id),
         driverId: parcel.assignedDriverId ? driverIds.get(parcel.assignedDriverId) : driverIds.get(parcel.driver),
@@ -398,8 +507,19 @@ async function seedCoreData() {
   }
 
   for (const attempt of initialAttempts) {
-    await prisma.deliveryAttempt.create({
-      data: {
+    await prisma.deliveryAttempt.upsert({
+      where: { externalId: attempt.id },
+      update: {
+        orderId: orderIds.get(attempt.taskId),
+        parcelId: parcelIds.get(attempt.taskId),
+        driverId: driverIds.get(attempt.driver),
+        reason: attempt.reason,
+        status: attempt.result,
+        notes: attempt.notes,
+        proof: attempt.proof
+      },
+      create: {
+        externalId: attempt.id,
         orderId: orderIds.get(attempt.taskId),
         parcelId: parcelIds.get(attempt.taskId),
         driverId: driverIds.get(attempt.driver),
@@ -412,8 +532,19 @@ async function seedCoreData() {
   }
 
   for (const returnRecord of initialReturns) {
-    await prisma.returnRequest.create({
-      data: {
+    await prisma.returnRequest.upsert({
+      where: { externalId: returnRecord.id },
+      update: {
+        orderId: orderIds.get(returnRecord.taskId),
+        parcelId: parcelIds.get(returnRecord.taskId),
+        driverId: driverIds.get(returnRecord.driver),
+        reason: returnRecord.reason,
+        status: returnRecord.status,
+        point: returnRecord.point,
+        notes: returnRecord.notes
+      },
+      create: {
+        externalId: returnRecord.id,
         orderId: orderIds.get(returnRecord.taskId),
         parcelId: parcelIds.get(returnRecord.taskId),
         driverId: driverIds.get(returnRecord.driver),
@@ -426,26 +557,31 @@ async function seedCoreData() {
   }
 
   for (const document of initialDocuments) {
-    await prisma.transportDocument.create({
-      data: {
+    const documentData = {
+      type: document.type,
+      linkedOrderId: orderIds.get(document.taskId),
+      linkedParcelId: parcelIds.get(document.taskId),
+      partnerId: partnerIds.get(document.partner),
+      senderName: document.sender,
+      recipientName: document.receiver,
+      origin: document.origin,
+      destination: document.destination,
+      vehicleId: vehicleIds.get(document.vehicle),
+      driverId: driverIds.get(document.driver),
+      cargoDescription: document.cargo,
+      pieces: document.pieces,
+      weight: document.weight,
+      status: document.status,
+      bayanDocumentNumber: null,
+      issuingEntity: "مسودة داخلية",
+      notes: document.notes
+    };
+    await prisma.transportDocument.upsert({
+      where: { internalDocumentNumber: document.id },
+      update: documentData,
+      create: {
         internalDocumentNumber: document.id,
-        type: document.type,
-        linkedOrderId: orderIds.get(document.taskId),
-        linkedParcelId: parcelIds.get(document.taskId),
-        partnerId: partnerIds.get(document.partner),
-        senderName: document.sender,
-        recipientName: document.receiver,
-        origin: document.origin,
-        destination: document.destination,
-        vehicleId: vehicleIds.get(document.vehicle),
-        driverId: driverIds.get(document.driver),
-        cargoDescription: document.cargo,
-        pieces: document.pieces,
-        weight: document.weight,
-        status: document.status,
-        bayanDocumentNumber: null,
-        issuingEntity: "مسودة داخلية",
-        notes: document.notes
+        ...documentData
       }
     });
   }
@@ -456,8 +592,15 @@ async function seedPlatform() {
   const driver = await prisma.driver.findFirst();
 
   for (const role of roles) {
-    const user = await prisma.user.create({
-      data: {
+    const user = await prisma.user.upsert({
+      where: { email: `${role.key}@azm.demo` },
+      update: {
+        name: role.label,
+        mobile: "0500000000",
+        status: "نشط",
+        driverId: role.key === "driver" ? driver?.id : undefined
+      },
+      create: {
         name: role.label,
         email: `${role.key}@azm.demo`,
         mobile: "0500000000",
@@ -467,12 +610,30 @@ async function seedPlatform() {
     });
     const roleId = roleByKey.get(role.key);
     if (roleId) {
-      await prisma.userRole.create({ data: { userId: user.id, roleId } });
+      await prisma.userRole.upsert({
+        where: {
+          userId_roleId: {
+            userId: user.id,
+            roleId
+          }
+        },
+        update: {},
+        create: { userId: user.id, roleId }
+      });
     }
   }
 
-  await prisma.bayanIntegrationSetting.create({
-    data: {
+  await prisma.bayanIntegrationSetting.upsert({
+    where: { id: "bayan-default" },
+    update: {
+      mode: "not-configured",
+      status: "غير مربوط",
+      appIdMasked: "غير مضبوط",
+      appKeyMasked: "غير مضبوط",
+      notes: "لا توجد مزامنة فعلية ولا توجد بيانات اعتماد رسمية في هذه المرحلة"
+    },
+    create: {
+      id: "bayan-default",
       mode: "not-configured",
       status: "غير مربوط",
       appIdMasked: "غير مضبوط",
@@ -482,8 +643,21 @@ async function seedPlatform() {
   });
 
   for (const log of initialActivityLogs) {
-    await prisma.activityLog.create({
-      data: {
+    await prisma.activityLog.upsert({
+      where: { externalId: log.id },
+      update: {
+        entityType: "demo",
+        entityId: log.related,
+        action: log.action,
+        description: log.notes,
+        metadataJson: {
+          status: log.status,
+          user: log.user,
+          time: log.time
+        }
+      },
+      create: {
+        externalId: log.id,
         entityType: "demo",
         entityId: log.related,
         action: log.action,
@@ -499,7 +673,9 @@ async function seedPlatform() {
 }
 
 async function main() {
-  await resetDatabase();
+  if (process.env.AZM_SEED_RESET === "true") {
+    await resetDatabase();
+  }
   await seedRoles();
   await seedCoreData();
   await seedPlatform();

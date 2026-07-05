@@ -35,7 +35,7 @@ export async function listParcels() {
   try {
     return serviceOk(await prisma.parcel.findMany({ orderBy: { createdAt: "desc" }, include: { partner: true, assignedDriver: true, vehicle: true, coverageArea: true } }));
   } catch {
-    return serviceError(initialParcels);
+    return serviceFallback(initialParcels);
   }
 }
 
@@ -46,7 +46,7 @@ export async function getParcelById(id: string) {
   try {
     return serviceOk(await prisma.parcel.findFirst({ where: { OR: [{ id }, { internalRef: id }] }, include: { assignmentHistory: true, statusHistory: true, partner: true, assignedDriver: true, vehicle: true, coverageArea: true } }));
   } catch {
-    return serviceError(null);
+    return serviceFallback(initialParcels.find((parcel) => parcel.id === id) ?? null);
   }
 }
 

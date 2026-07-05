@@ -20,7 +20,7 @@ export async function listActivityLogs() {
   try {
     return serviceOk(await prisma.activityLog.findMany({ orderBy: { createdAt: "desc" }, take: 100, include: { user: true } }));
   } catch {
-    return serviceError(initialActivityLogs);
+    return serviceFallback(initialActivityLogs);
   }
 }
 

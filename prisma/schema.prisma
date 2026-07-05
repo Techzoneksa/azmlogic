@@ -440,6 +440,7 @@ model ParcelStatusHistory {
 
 model DispatchTask {
   id             String        @id @default(cuid())
+  externalId     String?       @unique
   taskType       String
   orderId        String?
   parcelId       String?
@@ -461,6 +462,7 @@ model DispatchTask {
 
 model DeliveryAttempt {
   id        String   @id @default(cuid())
+  externalId String? @unique
   orderId   String?
   parcelId  String?
   driverId  String?
@@ -478,6 +480,7 @@ model DeliveryAttempt {
 
 model ReturnRequest {
   id        String   @id @default(cuid())
+  externalId String? @unique
   orderId   String?
   parcelId  String?
   driverId  String?
@@ -544,6 +547,7 @@ model BayanSyncLog {
 
 model ActivityLog {
   id           String   @id @default(cuid())
+  externalId   String?  @unique
   userId       String?
   user         User?    @relation(fields: [userId], references: [id])
   entityType   String

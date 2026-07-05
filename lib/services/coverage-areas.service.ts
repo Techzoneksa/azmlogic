@@ -1,6 +1,6 @@
 import { getPrismaClient } from "@/lib/db/prisma";
 import { initialCoverageAreas } from "@/lib/demo-data";
-import { serviceError, serviceFallback, serviceOk } from "./service-response";
+import { serviceFallback, serviceOk } from "./service-response";
 
 export async function listCoverageAreas() {
   const prisma = getPrismaClient();
@@ -9,6 +9,6 @@ export async function listCoverageAreas() {
   try {
     return serviceOk(await prisma.coverageArea.findMany({ orderBy: { createdAt: "desc" }, include: { neighborhoods: true, pickupPoints: true } }));
   } catch {
-    return serviceError(initialCoverageAreas);
+    return serviceFallback(initialCoverageAreas);
   }
 }

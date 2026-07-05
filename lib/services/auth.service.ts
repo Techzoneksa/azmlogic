@@ -1,6 +1,6 @@
 import { getPrismaClient } from "@/lib/db/prisma";
 import { roles } from "@/lib/demo-data";
-import { serviceError, serviceFallback, serviceOk } from "./service-response";
+import { serviceFallback, serviceOk } from "./service-response";
 
 export async function listRoles() {
   const prisma = getPrismaClient();
@@ -9,7 +9,7 @@ export async function listRoles() {
   try {
     return serviceOk(await prisma.role.findMany({ orderBy: { name: "asc" }, include: { permissions: { include: { permission: true } } } }));
   } catch {
-    return serviceError(roles);
+    return serviceFallback(roles);
   }
 }
 
@@ -30,6 +30,10 @@ export async function getUserSessionFoundation(email: string) {
     });
     return serviceOk(user);
   } catch {
-    return serviceError(null);
+    return serviceFallback({
+      user: null,
+      roles,
+      message: "اختيار الدور التجريبي مفعل"
+    });
   }
 }

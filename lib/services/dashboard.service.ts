@@ -1,6 +1,6 @@
 import { getPrismaClient } from "@/lib/db/prisma";
 import { initialDrivers, initialOrders, initialParcels, initialPartners } from "@/lib/demo-data";
-import { serviceError, serviceFallback, serviceOk } from "./service-response";
+import { serviceFallback, serviceOk } from "./service-response";
 
 export async function getDashboardSummary() {
   const prisma = getPrismaClient();
@@ -22,7 +22,7 @@ export async function getDashboardSummary() {
     ]);
     return serviceOk({ partners, drivers, orders, parcels });
   } catch {
-    return serviceError({
+    return serviceFallback({
       partners: initialPartners.length,
       drivers: initialDrivers.length,
       orders: initialOrders.length,

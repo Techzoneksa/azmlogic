@@ -3928,6 +3928,10 @@ export function OperationsApp() {
 
   function SettingsPage() {
     const dataModeLabel = process.env.NEXT_PUBLIC_DATA_MODE === "database" ? "وضع البيانات: قاعدة بيانات" : "وضع البيانات: تجريبي";
+    const dataModeHelp =
+      process.env.NEXT_PUBLIC_DATA_MODE === "database"
+        ? "النظام يعمل حاليا على قاعدة بيانات PostgreSQL."
+        : "النظام يعمل حاليا على بيانات تجريبية لأن قاعدة البيانات غير مفعلة.";
     const permissions = [
       "عرض",
       "إنشاء",
@@ -3989,7 +3993,11 @@ export function OperationsApp() {
               </div>
               <div>
                 <dt>وضع البيانات</dt>
-                <dd>{dataModeLabel}</dd>
+                <dd>
+                  {dataModeLabel}
+                  <br />
+                  <span className="muted">{dataModeHelp}</span>
+                </dd>
               </div>
               <div>
                 <dt>أسرار الربط</dt>

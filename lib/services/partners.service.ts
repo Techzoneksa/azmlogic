@@ -1,6 +1,6 @@
 import { getPrismaClient } from "@/lib/db/prisma";
 import { initialPartners } from "@/lib/demo-data";
-import { serviceError, serviceFallback, serviceOk } from "./service-response";
+import { serviceFallback, serviceOk } from "./service-response";
 
 export async function listPartners() {
   const prisma = getPrismaClient();
@@ -9,6 +9,6 @@ export async function listPartners() {
   try {
     return serviceOk(await prisma.partner.findMany({ orderBy: { createdAt: "desc" }, include: { contacts: true } }));
   } catch {
-    return serviceError(initialPartners);
+    return serviceFallback(initialPartners);
   }
 }
