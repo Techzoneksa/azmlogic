@@ -1,0 +1,5 @@
+{
+  "/api/foundation/[[...resource]]/route": "/api/foundation/[[...resource]]",
+  "/_not-found/page": "/_not-found",
+  "/[[...slug]]/page": "/[[...slug]]"
+}

@@ -1,0 +1,5 @@
+{
+  "/api/foundation/[[...resource]]/route": "app/api/foundation/[[...resource]]/route.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/[[...slug]]/page": "app/[[...slug]]/page.js"
+}
